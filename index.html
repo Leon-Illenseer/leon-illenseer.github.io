@@ -1,0 +1,1366 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leon Illenseer - Full-Stack-Entwickler · Shopware 6</title>
+<meta name="description" content="Portfolio von Leon Illenseer - Full-Stack-Entwickler mit Schwerpunkt Shopware 6: Shop-Weiterentwicklung und individuelle Erweiterungen.">
+<!-- Everything is self-hosted (vendor/): no request leaves this site — no Google Fonts, no CDN (DSGVO) -->
+<link rel="modulepreload" href="vendor/anime.esm.min.js">
+<link rel="preload" href="vendor/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="vendor/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+  /* Self-hosted variable fonts (SIL OFL 1.1, see vendor/LICENSES.md) — Latin subset, same as Google Fonts served before */
+  @font-face {
+    font-family: "Space Grotesk"; font-style: normal; font-weight: 300 700; font-display: swap;
+    src: url("vendor/fonts/space-grotesk-latin.woff2") format("woff2");
+  }
+  @font-face {
+    font-family: "JetBrains Mono"; font-style: normal; font-weight: 100 800; font-display: swap;
+    src: url("vendor/fonts/jetbrains-mono-latin.woff2") format("woff2");
+  }
+  /* ==========================================================
+     Design tokens
+     Violet is used as a PAIR so text always meets WCAG AA:
+       --violet     #6d28d9  on light surfaces  (7.1:1 on white)
+       --violet-hi  #b69cff  on dark surfaces   (8.6:1 on #0b0b0b)
+       --violet-ui  #8b5cf6  outlines / lines   (≥3:1 on both)
+     ========================================================== */
+  :root {
+    --bg: #050505;
+    --fg: #f4f4f1;
+    --ink: #0b0b0b;
+    --muted-dark: #b4b4ae;     /* secondary text on dark  (9:1)  */
+    --muted: #55554f;          /* secondary text on light (7.4:1) */
+    --line: #e2e2dd;
+    --violet: #6d28d9;
+    --violet-deep: #4c1d95;
+    --violet-hi: #b69cff;
+    --violet-ui: #8b5cf6;
+    --violet-soft: #f1ecff;
+    --r-sm: 12px;
+    --r-md: 20px;
+    --r-lg: 28px;
+    --pill: 999px;
+    --ease: cubic-bezier(.22, 1, .36, 1);
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+    --display: "Space Grotesk", system-ui, sans-serif;
+    --hud: var(--fg);
+    --hud-accent: var(--violet-hi);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { background: var(--bg); }
+  body { background: var(--bg); color: var(--fg); font-family: var(--display); font-size: 17px; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
+  body.loading { overflow: hidden; }
+  body.is-light { --hud: var(--ink); --hud-accent: var(--violet); }
+  body.is-light.on-dark { --hud: var(--fg); --hud-accent: var(--violet-hi); }
+  @media (hover: hover) and (pointer: fine) { body.has-cursor, body.has-cursor a, body.has-cursor button { cursor: none; } }
+  a { color: inherit; }
+  :focus-visible { outline: 3px solid var(--violet-ui); outline-offset: 4px; }
+
+  /* ---------- Loader ---------- */
+  #loader { position: fixed; inset: 0; z-index: 80; background: #000; display: grid; place-items: center; font-family: var(--mono); }
+  .loader-inner { display: grid; gap: 16px; justify-items: center; }
+  .loader-word { font-size: 15px; letter-spacing: .45em; padding-left: .45em; font-weight: 500; }
+  .loader-bar { width: 200px; height: 2px; border-radius: 2px; background: #222; overflow: hidden; }
+  .loader-bar i { display: block; height: 100%; background: var(--violet-hi); transform-origin: 0 50%; transform: scaleX(0); }
+
+  /* ---------- Scroll track + 3D stage ---------- */
+  .track { height: 800vh; position: relative; }
+  /* deep space: dark base + two faint nebula clouds; the stars are drawn on .stars */
+  .viewport {
+    position: sticky; top: 0; height: 100vh; overflow: hidden; perspective: 700px; perspective-origin: 50% 50%; contain: strict;
+    background:
+      radial-gradient(ellipse 55% 45% at 72% 28%, rgba(109,40,217,.28), transparent 70%),
+      radial-gradient(ellipse 50% 55% at 18% 78%, rgba(37,64,170,.2), transparent 70%),
+      radial-gradient(ellipse 80% 70% at 50% 50%, #0a0818, #020208 75%);
+  }
+  .stars { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .world { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transform-style: preserve-3d; will-change: transform; }
+  .p { position: absolute; left: 0; top: 0; transform-origin: 0 0; backface-visibility: hidden; }
+  /* Texture surfaces: will-change pins the raster scale, so surfaces near the camera are not re-rasterised at
+     several times their size (that stalled integrated GPUs after scroll jumps). Plain gradients don't need it. */
+  .vortex, .light { will-change: transform; }
+
+  /* Museum exhibit = ONE 3D layer: spotlight pool + lamp + framed poster (passe-partout) + wall label.
+     Kept in a single element so the 8 exhibits add no extra layers. */
+  .frame {
+    cursor: pointer;   /* stays position:absolute from .p - it's the containing block for lamp/frame/plaque */
+    background: radial-gradient(ellipse 62% 58% at 50% 36%, rgba(255,251,240,.7), rgba(255,251,240,.18) 55%, transparent 72%);
+  }
+  .lamp { position: absolute; left: 50%; top: 0; width: 140px; height: 12px; margin-left: -70px; background: #1b1b1b; border-radius: 0 0 8px 8px; }
+  .lamp::after { content: ""; position: absolute; left: 22px; right: 22px; bottom: -4px; height: 4px; border-radius: 4px; background: #fffbe8; box-shadow: 0 0 18px 6px rgba(255,248,220,.7); }
+  .fbox { position: absolute; left: 40px; right: 40px; top: 46px; height: 330px; background: #121212; padding: 10px; border-radius: 4px; }
+  .mat { position: relative; height: 100%; background: #f6f4ee; padding: 22px; }
+  .poster { display: block; width: 100%; height: 100%; }
+  .mat::after { content: ""; position: absolute; inset: 22px; background: rgba(109,40,217,.16); opacity: 0; transition: opacity .45s var(--ease); }
+  .frame.is-hover .mat::after { opacity: 1; }
+  .plaque {
+    position: absolute; left: 40px; top: 400px; width: 270px; padding: 14px 18px 15px; background: #fbfaf6; border: 1px solid #d9d6cd; border-radius: 6px;
+    color: var(--ink);
+  }
+  .plaque small { display: block; font-family: var(--mono); font-size: 15px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--violet); }
+  .plaque strong { display: block; font-size: 27px; line-height: 1.05; letter-spacing: -.02em; margin: 6px 0 8px; }
+  .plaque span { font-family: var(--mono); font-size: 14px; color: var(--muted); }
+  .plaque-no { position: absolute; right: 40px; top: 404px; font-family: var(--mono); font-size: 40px; font-weight: 500; color: rgba(0,0,0,.18); }
+  .frame.is-hover .plaque span { color: var(--violet); }
+
+  /* Hero: floating title panel with a faint violet rim so it separates from deep space */
+  .hero { width: 940px; height: 400px; display: grid; place-content: center; text-align: center; pointer-events: none; background: rgba(11,11,11,.92); border: 1.5px solid rgba(182,156,255,.35); border-radius: var(--r-lg); }
+  .hero-kicker, .hero-sub { justify-self: center; font-family: var(--mono); }
+  .hero-kicker { font-size: 26px; font-weight: 500; letter-spacing: .18em; margin-bottom: 26px; color: var(--violet-hi); }
+  .hero-title { font-size: 104px; line-height: .9; font-weight: 700; letter-spacing: -.045em; color: #fff; }
+  .hero-sub { margin-top: 28px; font-size: 19px; letter-spacing: .06em; color: #d6d6d0; }
+
+  /* Portal rings: soft radial glow, no hard edges; the light disc at the end is the "bright room" */
+  /* Galaxy vortex: translucent discs with spiral-arm texture (generated once on a canvas), swirling against each other */
+  .vortex { border-radius: 50%; background: center / 100% 100% no-repeat; pointer-events: none; }
+  .light { border-radius: 50%; background: radial-gradient(circle closest-side, #fff 0 30%, rgba(246,243,255,.92) 42%, rgba(196,176,255,.45) 62%, rgba(139,92,246,.12) 80%, transparent 100%); }
+
+  /* will-change pins the raster scale: no per-frame text re-rasterisation while flying towards it */
+  .holo, .hero { will-change: transform, opacity; }
+  .holo { width: 900px; height: 260px; display: grid; place-content: center; justify-items: center; gap: 16px; text-align: center; pointer-events: none; }
+  .holo small { font-family: var(--mono); font-size: 44px; font-weight: 500; letter-spacing: .14em; color: var(--violet-hi); background: var(--ink); padding: 10px 30px 12px 36px; border-radius: var(--pill); }
+  .holo strong .sw-chip { display: inline-grid; place-items: center; width: 76px; height: 76px; margin: 0 22px -10px -16px; border-radius: 50%; background: #fff; vertical-align: baseline; }
+  .holo strong .sw-chip svg { width: 52px; height: 52px; }
+  /* Shopware logo placements (official press-kit files in images/) */
+  .with-sw { display: flex; align-items: center; gap: 10px; }
+  .with-sw img { flex: none; }
+  .sw-badge { display: inline-flex; align-items: center; gap: 10px; margin-top: 14px; padding: 8px 14px 8px 12px; border-radius: var(--pill); background: #fff; font-family: var(--mono); font-size: 13px; font-weight: 500; letter-spacing: .04em; color: var(--ink); }
+  .sw-badge img { height: 18px; width: auto; display: block; }
+  /* bib International College logo (official file from bib.de, images/bib-logo.svg) */
+  .cert-org { position: absolute; top: 28px; right: 26px; height: 34px; width: auto; }
+  .org-badge { display: inline-flex; margin-top: 14px; padding: 8px 14px; border-radius: var(--pill); background: #fff; border: 1px solid var(--line); }
+  .org-badge img { display: block; height: 30px; width: auto; }
+  .cert-logo { align-self: flex-start; background: #fff; border-radius: var(--pill); padding: 12px 20px; }
+  .cert-logo img { display: block; height: 26px; width: auto; }
+  .holo strong { font-size: 84px; line-height: 1; font-weight: 700; letter-spacing: -.035em; color: #fff; white-space: nowrap; background: var(--ink); padding: 18px 44px 24px; border-radius: var(--pill); }
+
+  /* Screen-space overlays (no blend modes: cheap to composite) */
+  .glow { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(circle at 50% 50%, rgba(240,236,255,.7), rgba(240,236,255,.12) 25%, transparent 55%); }
+  .vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,.72)); }
+  .whiteout { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+  .grain {
+    position: fixed; inset: -50%; z-index: 40; pointer-events: none; opacity: .05; will-change: transform;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+
+  /* ---------- HUD ---------- */
+  .hud {
+    position: fixed; inset: 0; z-index: 30; pointer-events: none; color: var(--hud); transition: color .4s var(--ease);
+    font-family: var(--mono); font-size: 13px; letter-spacing: .1em; text-transform: uppercase;
+  }
+  /* soft dark halo keeps white HUD text readable over the bright gallery walls */
+  body:not(.is-light) .hud, body.on-dark .hud { text-shadow: 0 1px 2px rgba(0,0,0,.6), 0 0 16px rgba(0,0,0,.5); }
+  .hud a { pointer-events: auto; text-decoration: none; }
+  .hud-top { position: absolute; top: 20px; left: 28px; right: 28px; display: flex; justify-content: space-between; align-items: center; }
+  .logo { font-family: var(--display); font-weight: 700; font-size: 18px; letter-spacing: .01em; text-transform: none; }
+  .logo span { color: var(--hud-accent); transition: color .4s; }
+  .nav { display: flex; gap: 6px; }
+  .nav a { position: relative; padding: 9px 14px; border-radius: var(--pill); transition: background-color .35s var(--ease), color .35s var(--ease); }
+  .nav a:hover { background: color-mix(in srgb, var(--hud) 12%, transparent); }
+  .hud-bottom { position: absolute; bottom: 22px; left: 28px; right: 28px; display: flex; justify-content: space-between; align-items: end; }
+  .section-label { overflow: hidden; height: 1.4em; }
+  .section-label span { display: inline-block; }
+  .progress { position: absolute; left: 28px; right: 28px; bottom: 56px; height: 2px; border-radius: 2px; background: color-mix(in srgb, var(--hud) 22%, transparent); overflow: hidden; }
+  .progress i { display: block; height: 100%; background: var(--hud-accent); transform-origin: 0 50%; transform: scaleX(0); }
+  .scroll-hint { position: absolute; left: 50%; bottom: 80px; translate: -50% 0; }
+  .hud-shade { position: fixed; inset: 0; z-index: 29; pointer-events: none; transition: opacity .4s; background: linear-gradient(rgba(0,0,0,.5), transparent 110px, transparent calc(100% - 130px), rgba(0,0,0,.5)); }
+  body.is-light .hud-shade { opacity: 0; }
+  body.in-content .progress, body.in-content .scroll-hint, body.in-content .hud-bottom { visibility: hidden; }
+  /* In the content area the top bar gets its own surface so headings never run under the nav */
+  /* display:none over the 3D scene: a backdrop-filter (even at opacity 0) would force the whole scene into an extra render surface */
+  .hud-bar { position: fixed; inset: 0 0 auto; height: 72px; z-index: 29; pointer-events: none; display: none;
+    background: rgba(255,255,255,.9); border-bottom: 1px solid rgba(0,0,0,.06); transition: background-color .45s var(--ease); }
+  body.in-content .hud-bar { display: block; backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4); animation: barIn .45s var(--ease); }
+  @keyframes barIn { from { opacity: 0; transform: translateY(-100%); } }
+  body.in-content.on-dark .hud-bar { background: rgba(11,11,11,.86); border-bottom-color: rgba(255,255,255,.08); }
+
+  /* Cursor: wrappers only move, inner ring only scales */
+  .cursor { position: fixed; left: 0; top: 0; z-index: 90; width: 0; height: 0; pointer-events: none; opacity: 0; color: var(--hud); }
+  .c-pos { position: absolute; left: 0; top: 0; width: 0; height: 0; will-change: transform; }
+  .cursor-ring { position: absolute; left: -17px; top: -17px; width: 34px; height: 34px; border: 1.5px solid currentColor; border-radius: 50%; }
+  .cursor-dot { position: absolute; left: -2.5px; top: -2.5px; width: 5px; height: 5px; background: var(--hud-accent); border-radius: 50%; }
+  .cursor-label { position: absolute; left: 28px; top: -9px; font-family: var(--mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; opacity: 0; background: var(--ink); color: #fff; padding: 4px 10px; border-radius: var(--pill); }
+  body.modal-open .cursor { color: var(--ink); }
+
+  /* ---------- Buttons (one system) ---------- */
+  .btn {
+    position: relative; isolation: isolate; overflow: hidden; display: inline-flex; align-items: center; gap: 12px;
+    font-family: var(--mono); font-size: 14px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; text-decoration: none;
+    padding: 17px 28px; border-radius: var(--pill); border: 1.5px solid currentColor; background: transparent; color: var(--ink);
+    transition: color .45s var(--ease), border-color .45s var(--ease), scale .25s var(--ease);
+    will-change: transform;
+  }
+  .btn::before {   /* fill sweeps up from the bottom on hover */
+    content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--ink);
+    transform: translateY(101%); transition: transform .55s var(--ease);
+  }
+  .btn:hover::before, .btn:focus-visible::before { transform: translateY(0); }
+  .btn:hover, .btn:focus-visible { color: #fff; }
+  .btn:active { scale: .96; }
+  .btn .arr { display: inline-block; transition: translate .45s var(--ease); }
+  .btn:hover .arr { translate: 4px 0; }
+  .btn:hover .arr.back { translate: -4px 0; }
+  .btn-primary { background: var(--violet); border-color: var(--violet); color: #fff; }
+  .btn-primary::before { background: var(--ink); }
+  .btn-primary:hover { border-color: var(--ink); }
+  .btn-sm { padding: 11px 18px; font-size: 13px; }
+
+  /* ---------- Project modal ---------- */
+  .modal { position: fixed; inset: 0; z-index: 70; }
+  .modal[hidden] { display: none; }
+  .modal-backdrop { position: absolute; inset: 0; background: rgba(5,5,5,.6); }
+  .modal-panel {
+    position: absolute; top: 0; right: 0; bottom: 0; width: min(580px, 100%); background: #f7f6f3; color: var(--ink);
+    padding: 30px 40px 36px; overflow-y: auto; display: flex; flex-direction: column; gap: 26px; border-radius: var(--r-lg) 0 0 var(--r-lg);
+  }
+  .modal-top { display: flex; justify-content: space-between; align-items: center; font-family: var(--mono); font-size: 14px; letter-spacing: .1em; color: var(--muted); }
+  .modal-art { position: relative; border-radius: var(--r-md); overflow: hidden; background: #f6f4ee; border: 10px solid #121212; padding: 18px; flex-shrink: 0; }
+  .modal-art .poster { height: auto; aspect-ratio: 336 / 266; border-radius: 2px; }
+  .modal-art::after { display: none; }
+  .modal-art::after { content: attr(data-n); position: absolute; left: 16px; bottom: 16px; font-family: var(--mono); font-size: 13px; color: #fff; background: var(--ink); padding: 6px 12px; border-radius: var(--pill); }
+  .modal-cat { font-family: var(--mono); font-size: 17px; letter-spacing: .1em; text-transform: uppercase; color: var(--violet); font-weight: 500; }
+  .modal-title { font-size: 44px; line-height: 1; letter-spacing: -.03em; margin-top: 10px; }
+  .modal-summary { font-size: 19px; line-height: 1.55; color: #26262a; }
+  .modal-points { list-style: none; display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 22px; }
+  .modal-points li { display: grid; grid-template-columns: 26px 1fr; font-size: 17px; line-height: 1.5; color: #33332f; }
+  .modal-points li::before { content: "→"; color: var(--violet); font-weight: 700; }
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tag { font-family: var(--mono); font-size: 13px; letter-spacing: .02em; padding: 8px 14px; border: 1px solid #cdcdc7; border-radius: var(--pill); color: #33332f; background: #fff; }
+  .tag.now { background: var(--violet-soft); border-color: #d9ccff; color: var(--violet-deep); }
+  /* sticky footer bar: prev/next stay in view while the panel content scrolls underneath */
+  .modal-nav {
+    position: sticky; bottom: -36px; z-index: 2; margin: auto -40px -36px; padding: 18px 40px 26px;
+    display: flex; justify-content: space-between; gap: 12px;
+    background: rgba(247,246,243,.94); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border-top: 1px solid var(--line); box-shadow: 0 -12px 24px -18px rgba(0,0,0,.25);
+  }
+
+  /* ---------- Content sections ---------- */
+  .content { position: relative; z-index: 1; background: #fff; color: var(--ink); }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 0 28px; }
+  .sec { padding: 140px 0 120px; border-top: 1px solid var(--line); content-visibility: auto; contain-intrinsic-size: auto 900px; }
+  .sec:first-child { border-top: 0; padding-top: 18vh; }
+  .kicker { font-family: var(--mono); font-size: 14px; letter-spacing: .22em; color: var(--muted); margin-bottom: 30px; display: flex; gap: 14px; align-items: center; font-weight: 500; }
+  .kicker::before { content: ""; width: 10px; height: 10px; background: var(--violet); border-radius: 50%; }
+  .big { font-size: clamp(40px, 7vw, 108px); line-height: .98; letter-spacing: -.045em; font-weight: 700; max-width: 16ch; }
+  .big em { font-style: normal; color: var(--violet); }
+  .sub-h { font-family: var(--mono); font-size: 15px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; display: flex; align-items: center; gap: 14px; margin: 80px 0 24px; }
+  .sub-h::after { content: ""; flex: 1; height: 1px; background: currentColor; opacity: .25; }
+
+  .profile-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 60px; margin-top: 70px; align-items: start; }
+
+  /* Images share the card radius - same family as the pill buttons */
+  .portrait { width: min(360px, 78vw); margin-bottom: 44px; }
+  .portrait-img { position: relative; aspect-ratio: 1890 / 2000; overflow: hidden; background: #e9e9e5; border-radius: var(--r-lg); }
+  .portrait-img img { display: block; width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) contrast(1.05); transition: filter .7s var(--ease), transform .9s var(--ease); }
+  .portrait:hover img { filter: grayscale(0); transform: scale(1.04); }
+  .portrait figcaption { display: grid; gap: 4px; margin-top: 14px; font-family: var(--mono); font-size: 14px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .portrait figcaption span:first-child { color: var(--ink); font-weight: 500; }
+  .contact-head { display: grid; grid-template-columns: 1fr auto; gap: 40px; align-items: end; }
+  .contact-photo { width: min(230px, 56vw); margin-bottom: 0; }
+  .contact-photo .portrait-img { aspect-ratio: 1; }
+
+  .lead { font-size: clamp(18px, 1.7vw, 21px); line-height: 1.6; color: #26262a; max-width: 54ch; }
+  .lead + .lead { margin-top: 18px; }
+
+  /* Profile: "Fundament zuerst, dann KI" */
+  .ai-block { margin-top: 110px; padding-top: 80px; border-top: 1px solid var(--line); display: grid; grid-template-columns: 1.25fr 1fr; gap: 70px; align-items: start; }
+  .ai-h { font-size: clamp(32px, 3.8vw, 56px); line-height: 1.02; letter-spacing: -.035em; margin-bottom: 28px; max-width: 16ch; }
+  .ai-h em { font-style: normal; color: var(--violet); }
+  .ai-steps { list-style: none; border-left: 2px solid #ddd2ff; margin-top: 8px; }
+  .ai-steps li { position: relative; padding: 0 0 30px 30px; }
+  .ai-steps li:last-child { padding-bottom: 0; }
+  .ai-steps li::before { content: ""; position: absolute; left: -8px; top: 5px; width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 2px solid var(--violet); }
+  .ai-steps li.now::before { background: var(--violet); box-shadow: 0 0 0 5px #ede6ff; }
+  .ai-steps time { font-family: var(--mono); font-size: 14px; font-weight: 500; letter-spacing: .04em; color: var(--violet); }
+  .ai-steps b { display: block; font-size: 21px; letter-spacing: -.01em; margin: 4px 0 6px; }
+  .ai-steps span { display: block; font-size: 16px; line-height: 1.5; color: var(--muted); }
+  .ai-callout {
+    margin-top: 60px; border-radius: var(--r-lg); padding: 44px 44px 40px; color: #fff; display: grid; grid-template-columns: 220px 1fr; gap: 36px;
+    background: radial-gradient(120% 120% at 100% 0%, #7c3aed 0%, transparent 55%), linear-gradient(160deg, #4c1d95, #1e0b45 85%);
+  }
+  .ai-callout-k { font-family: var(--mono); font-size: 14px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: #d9ccff; }
+  .ai-callout-k strong { display: block; margin-top: 10px; font-family: var(--display); font-size: 30px; line-height: 1.05; letter-spacing: -.02em; text-transform: none; color: #fff; }
+  .ai-callout p { font-size: 19px; line-height: 1.6; color: #f1edff; max-width: 62ch; }
+  .ai-callout p + p { margin-top: 14px; }
+  .ai-callout .tags { margin-top: 24px; }
+  .ai-callout .tag { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.28); color: #fff; }
+
+  /* Experience stats: tinted violet surface so they stand out */
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .stat { background: var(--violet-soft); border-radius: var(--r-md); padding: 26px 24px 24px; transition: transform .5s var(--ease), background-color .5s var(--ease); }
+  .stat:hover { transform: translateY(-4px); background: #e9e1ff; }
+  .stat b { display: block; font-size: clamp(38px, 4vw, 56px); font-weight: 700; letter-spacing: -.04em; line-height: 1; color: var(--violet); }
+  .stat span { display: block; margin-top: 12px; font-size: 16px; line-height: 1.45; color: #2e2742; }
+
+  .skills { margin-top: 70px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+  .skill-col { border-radius: var(--r-md); padding: 28px 26px; background: #f7f6f3; }
+  .skill-col.now { background: var(--violet-soft); }
+  .skill-col h3 { font-size: 22px; letter-spacing: -.01em; margin-bottom: 6px; }
+  .skill-col p { font-size: 15px; color: var(--muted); margin-bottom: 20px; }
+  .skill-col.now p { color: #4a3f6b; }
+  .legend { margin-top: 26px; display: flex; flex-wrap: wrap; gap: 20px; font-size: 15px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 8px; }
+  .legend i { width: 14px; height: 14px; border-radius: 50%; border: 1px solid #cdcdc7; background: #fff; }
+  .legend i.now { background: var(--violet-soft); border-color: #c9b8ff; }
+
+  /* Werdegang - Berufserfahrung as a dominant dark panel */
+  .xp-panel { background: var(--ink); color: var(--fg); border-radius: var(--r-lg); padding: 14px 40px; margin-top: 24px; }
+  .tl-row { display: grid; grid-template-columns: 190px 1fr 1.2fr; gap: 40px; padding: 34px 0; border-bottom: 1px solid var(--line); }
+  .xp-panel .tl-row { border-bottom-color: #26262a; }
+  .tl-row:last-child { border-bottom: 0; }
+  .tl-when { font-family: var(--mono); font-size: 14px; letter-spacing: .06em; color: var(--muted); padding-top: 7px; }
+  .xp-panel .tl-when { color: var(--violet-hi); }
+  .tl-role { font-size: 27px; font-weight: 700; letter-spacing: -.02em; line-height: 1.15; }
+  .tl-org { display: block; margin-top: 8px; font-size: 16px; font-weight: 400; color: var(--muted); letter-spacing: 0; line-height: 1.45; }
+  .xp-panel .tl-org { color: var(--muted-dark); }
+  .tl-list { list-style: none; display: grid; gap: 9px; font-size: 17px; line-height: 1.5; color: #33332f; }
+  .xp-panel .tl-list { color: #deded8; }
+  .tl-list li { display: grid; grid-template-columns: 20px 1fr; }
+  .tl-list li::before { content: "-"; color: var(--violet); }
+  .xp-panel .tl-list li::before { color: var(--violet-hi); }
+  .edu { border-top: 1px solid var(--ink); }
+
+  /* Certificates */
+  .certs { margin-top: 70px; display: grid; grid-template-columns: 1.25fr 1fr 1fr; grid-template-rows: auto auto; gap: 16px; }
+  .cert {
+    position: relative; background: #fff; border: 1px solid var(--line); border-radius: var(--r-md); padding: 30px 28px 28px;
+    display: flex; flex-direction: column; gap: 14px; transition: transform .5s var(--ease), box-shadow .5s var(--ease), border-color .5s var(--ease);
+  }
+  .cert:hover { transform: translateY(-6px); box-shadow: 0 24px 50px -24px rgba(76,29,149,.35); border-color: #d9ccff; }
+  .cert-icon { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; background: var(--violet-soft); color: var(--violet); }
+  .cert-icon svg { width: 22px; height: 22px; }
+  .cert-date { font-family: var(--mono); font-size: 13px; letter-spacing: .06em; color: var(--muted); text-transform: uppercase; }
+  .cert h3 { font-size: 23px; line-height: 1.2; letter-spacing: -.015em; }
+  .cert p { font-size: 16px; line-height: 1.55; color: #3f3f3a; }
+  .cert .badge { margin-top: auto; align-self: flex-start; font-family: var(--mono); font-size: 13px; letter-spacing: .06em; text-transform: uppercase; padding: 7px 14px; border-radius: var(--pill); background: #f2f2ee; color: var(--ink); }
+  .cert.featured {
+    grid-row: span 2; border: 0; color: #fff; padding: 40px 36px 36px; overflow: hidden;
+    background: radial-gradient(120% 90% at 100% 0%, #7c3aed 0%, transparent 60%), linear-gradient(160deg, #4c1d95, #1e0b45 80%);
+  }
+  .cert.featured::after {   /* large seal */
+    content: "6"; position: absolute; right: -20px; top: -40px; font-size: 280px; font-weight: 700; line-height: 1; color: rgba(255,255,255,.07); pointer-events: none;
+  }
+  .cert.featured .cert-icon { background: rgba(255,255,255,.14); color: #fff; width: 58px; height: 58px; }
+  .cert.featured .cert-icon svg { width: 28px; height: 28px; }
+  .cert.featured .cert-date { color: #d9ccff; }
+  .cert.featured h3 { font-size: clamp(28px, 2.6vw, 38px); line-height: 1.08; }
+  .cert.featured p { color: #e7e0ff; font-size: 17px; max-width: 40ch; }
+  .cert.featured .badge { background: #fff; color: var(--violet-deep); font-weight: 500; }
+  .cert.featured:hover { box-shadow: 0 30px 60px -24px rgba(76,29,149,.6); }
+
+  .quote-mark { font-size: 120px; line-height: .6; color: var(--violet); font-weight: 700; height: 60px; }
+  .quote { margin-top: 10px; font-size: clamp(28px, 3.6vw, 52px); line-height: 1.18; letter-spacing: -.03em; font-weight: 500; max-width: 24ch; }
+  .quote-src { margin-top: 30px; font-family: var(--mono); font-size: 14px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+  .contact { padding-bottom: 110px; }
+  .mail { display: inline-block; margin-top: 54px; font-size: clamp(28px, 5vw, 76px); font-weight: 700; letter-spacing: -.04em; text-decoration: none; position: relative; border-radius: var(--r-sm); }
+  .mail::after { content: ""; position: absolute; left: 0; right: 0; bottom: -6px; height: 4px; border-radius: 4px; background: var(--violet); transform: scaleX(.18); transform-origin: left; transition: transform .7s var(--ease); }
+  .mail:hover::after, .mail:focus-visible::after { transform: scaleX(1); }
+  .legal-link { color: var(--ink); text-underline-offset: 3px; transition: color .3s var(--ease); }
+  .legal-link:hover { color: var(--violet); }
+  .contact-row { margin-top: 90px; display: flex; flex-wrap: wrap; gap: 28px 60px; justify-content: space-between; align-items: end; font-size: 16px; color: var(--muted); line-height: 1.7; }
+
+  @media (max-width: 1080px) {
+    .certs { grid-template-columns: 1fr 1fr; }
+    .cert.featured { grid-row: auto; grid-column: 1 / -1; }
+  }
+  @media (max-width: 960px) {
+    .profile-grid { grid-template-columns: 1fr; }
+    .tl-row { grid-template-columns: 1fr; gap: 14px; }
+    .skills { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 640px) {
+    .nav { display: none; }
+    .hud-top, .hud-bottom { left: 16px; right: 16px; }
+    .progress { left: 16px; right: 16px; }
+    .wrap { padding: 0 16px; }
+    .certs { grid-template-columns: 1fr; }
+    .xp-panel { padding: 6px 22px; }
+    .contact-head { grid-template-columns: 1fr; }
+    .modal-panel { padding: 22px 20px 28px; border-radius: 0; }
+    .modal-nav { bottom: -28px; margin: auto -20px -28px; padding: 14px 20px 20px; }
+    .ai-block, .ai-callout { grid-template-columns: 1fr; }
+    .ai-callout { padding: 28px 22px; }
+    .modal-title { font-size: 36px; }
+    body.in-content .hud-bottom { visibility: hidden; }
+  }
+</style>
+</head>
+<body class="loading">
+
+<div id="loader" aria-hidden="true">
+  <div class="loader-inner">
+    <div class="loader-word">LEON ILLENSEER</div>
+    <div class="loader-bar"><i></i></div>
+  </div>
+</div>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="cursor" aria-hidden="true">
+  <div class="c-pos c-ring-pos"><div class="cursor-ring"></div><div class="cursor-label">Ansehen</div></div>
+  <div class="c-pos c-dot-pos"><div class="cursor-dot"></div></div>
+</div>
+
+<div class="hud-shade" aria-hidden="true"></div>
+<div class="hud-bar" aria-hidden="true"></div>
+<header class="hud">
+  <div class="hud-top">
+    <a class="logo hud-item" href="#" data-goto="0">Leon Illenseer<span>.</span></a>
+    <nav class="nav" aria-label="Hauptnavigation">
+      <a class="hud-item" href="#" data-goto="0.2">Arbeiten</a>
+      <a class="hud-item" href="#" data-goto="0.62">Stack</a>
+      <a class="hud-item" href="#profil">Profil</a>
+      <a class="hud-item" href="#werdegang">Werdegang</a>
+      <a class="hud-item" href="#kontakt">Kontakt</a>
+    </nav>
+  </div>
+  <div class="scroll-hint hud-item">Scroll ↓ Eintreten</div>
+  <div class="progress hud-item"><i></i></div>
+  <div class="hud-bottom">
+    <div class="section-label hud-item"><span>01 - Arbeiten</span></div>
+  </div>
+</header>
+
+<main>
+  <section class="track" aria-label="Projekte und Tech-Stack als 3D-Rundgang">
+    <div class="viewport">
+      <canvas class="stars" aria-hidden="true"></canvas>
+      <div class="world"></div>
+      <div class="glow"></div>
+      <div class="vignette"></div>
+      <div class="whiteout"></div>
+    </div>
+  </section>
+
+  <div class="content">
+    <section class="sec" id="profil" data-label="03 - Profil">
+      <div class="wrap">
+        <div class="kicker">03 - PROFIL</div>
+        <h2 class="big split">Ich mache Shops <em>besser</em> - und entwickle Erweiterungen, die bleiben.</h2>
+        <div class="profile-grid">
+          <div data-reveal>
+            <figure class="portrait">
+              <div class="portrait-img"><img src="images/portrait.webp" alt="Porträt von Leon Illenseer" width="1890" height="2000" loading="lazy" decoding="async"></div>
+              <figcaption><span>Leon Illenseer</span><span>Horn-Bad Meinberg</span></figcaption>
+            </figure>
+            <p class="lead">Ich bin Full-Stack-Entwickler mit Schwerpunkt auf Shopware 6. Ich entwickle bestehende Onlineshops weiter, programmiere eigene Erweiterungen mit PHP und Symfony und setze Storefront-Anpassungen mit Twig, SCSS und JavaScript um.</p>
+            <p class="lead">Dabei verbessere ich Performance und Abläufe, übersetze komplexe Kundenanforderungen in saubere Lösungen und stehe im direkten Austausch mit Kunden. Ergänzend arbeite ich mit KI-gestützten Werkzeugen wie Claude Code.</p>
+          </div>
+          <div class="stats" data-reveal>
+            <div class="stat"><b>3,5</b><span>Jahre Shopware-6-Entwicklung in einer Silver-Partner-Agentur</span></div>
+            <div class="stat"><b>2</b><span>Eigene Erweiterungen im Shopware Store veröffentlicht</span></div>
+            <div class="stat"><b>SW6</b><span>Certified Advanced Template Designer</span></div>
+            <div class="stat"><b>B2B·B2C</b><span>Shops weiterentwickelt, migriert und betreut</span></div>
+          </div>
+        </div>
+
+        <div class="ai-block">
+          <div data-reveal>
+            <h3 class="ai-h">Erst das Handwerk. <em>Dann die KI.</em></h3>
+            <p class="lead">Mein Fundament habe ich mir erarbeitet, bevor KI-Werkzeuge zum Entwickleralltag gehörten. Ausbildung, erste Shop-Projekte und meine ersten Shopware-Erweiterungen habe ich selbst geschrieben, Zeile für Zeile. Genau das ist heute mein Vorteil: Ich verstehe, was ein KI-Agent vorschlägt, und erkenne, wann er danebenliegt.</p>
+            <p class="lead">In meinen dreieinhalb Jahren bei der codegiganten GmbH habe ich die rasante Entwicklung der KI-Agents hautnah miterlebt. Im Team haben wir verschiedene Agents und Assistenten intensiv getestet, an echten Kundenprojekten verglichen und herausgearbeitet, wo sie wirklich Zeit sparen: bei Tests, Refactorings, Code-Reviews und Dokumentation. Und wo Erfahrung durch nichts zu ersetzen ist.</p>
+          </div>
+          <ol class="ai-steps" data-reveal>
+            <li><time>2020-2023</time><b>Grundlagen ohne Abkürzung</b><span>Programmieren, Datenbanken und Backend in der schulischen Ausbildung von Grund auf gelernt.</span></li>
+            <li><time>2023</time><b>Einstieg bei codegiganten</b><span>Shopware-Handwerk: Plugins, Themes und Schnittstellen eigenständig entwickelt.</span></li>
+            <li><time>2023-2026</time><b>KI-Agents im Team erprobt</b><span>Verschiedene Agents getestet, verglichen und gezielt in den Entwicklungsalltag integriert.</span></li>
+            <li class="now"><time>2026</time><b>Dieses Portfolio</b><span>Mit KI umgesetzt, von der Idee bis zur Performance-Optimierung.</span></li>
+          </ol>
+        </div>
+
+        <div class="ai-callout" data-reveal data-dark>
+          <div class="ai-callout-k">Making-of<strong>Diese Website</strong></div>
+          <div>
+            <p>Dieses Portfolio habe ich gemeinsam mit KI gebaut, mit Claude Code als Entwicklungspartner. Konzept, Inhalte, Gestaltung und jede einzelne Überarbeitung kamen von mir, die KI hat den Code mit mir umgesetzt.</p>
+            <p>Das Ergebnis: eine begehbare 3D-Galerie, flüssige Animationen mit anime.js, barrierefreie Farben nach WCAG und eine Performance-Optimierung, die selbst auf schwacher Notebook-Grafik trägt. Genau so arbeite ich: KI als Werkzeug, Verantwortung und Qualität bei mir.</p>
+            <div class="tags"><span class="tag">Claude Code</span><span class="tag">anime.js v4</span><span class="tag">CSS 3D</span><span class="tag">WCAG AA</span><span class="tag">Performance-Tuning</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" id="stack" data-label="04 - Stack">
+      <div class="wrap">
+        <div class="kicker">04 - STACK</div>
+        <h2 class="big split">Womit ich <em>aktuell</em> arbeite - und was ich schon eingesetzt habe.</h2>
+        <div class="skills" data-reveal>
+          <div class="skill-col now"><h3 class="with-sw"><img src="images/shopware-mark.svg" alt="" width="26" height="26">Shopware &amp; Backend</h3><p>Aktuell im Einsatz</p><div class="tags">
+            <span class="tag now">Shopware 6</span><span class="tag now">PHP 8</span><span class="tag now">Symfony</span><span class="tag now">Data Abstraction Layer</span><span class="tag now">Store / Admin / Sync API</span><span class="tag now">Flow Builder</span><span class="tag now">Rule Builder</span><span class="tag now">MySQL</span>
+          </div></div>
+          <div class="skill-col now"><h3>Frontend &amp; Workflow</h3><p>Aktuell im Einsatz</p><div class="tags">
+            <span class="tag now">Twig</span><span class="tag now">SCSS</span><span class="tag now">Bootstrap</span><span class="tag now">JavaScript</span><span class="tag now">Storefront-JS-Plugins</span><span class="tag now">Git</span><span class="tag now">PHPUnit</span><span class="tag now">Docker</span><span class="tag now">CI/CD</span><span class="tag now">Claude Code</span>
+          </div></div>
+          <div class="skill-col"><h3>Erfahrung aus Ausbildung &amp; Projekten</h3><p>Bereits eingesetzt</p><div class="tags">
+            <span class="tag">C# / .NET</span><span class="tag">WPF</span><span class="tag">Unity</span><span class="tag">AR-Entwicklung</span><span class="tag">jQuery</span><span class="tag">3D &amp; Animation</span><span class="tag">Scrum</span><span class="tag">IT-Systemadministration</span>
+          </div></div>
+        </div>
+        <div class="legend" data-reveal><span><i class="now"></i>Aktuell im Einsatz</span><span><i></i>Bereits eingesetzt</span></div>
+      </div>
+    </section>
+
+    <section class="sec" id="werdegang" data-label="05 - Werdegang">
+      <div class="wrap">
+        <div class="kicker">05 - WERDEGANG</div>
+        <h2 class="big split">Schulisch zum Game Developer - beruflich durchgestartet im <em>E-Commerce</em>.</h2>
+
+        <h3 class="sub-h">Berufserfahrung</h3>
+        <div class="xp-panel" data-dark>
+          <div class="tl-row" data-reveal>
+            <div class="tl-when">07/2023 - HEUTE</div>
+            <div class="tl-role">Full-Stack-Entwickler E-Commerce<span class="tl-org">codegiganten GmbH, Paderborn</span><span class="sw-badge"><img src="images/shopware-logo-blue.svg" alt="Shopware" width="92" height="20">Silver Partner</span></div>
+            <ul class="tl-list">
+              <li>Eigenverantwortliche Entwicklung von Shopware-6-Plugins für Kundenprojekte und den Shopware Store</li>
+              <li>Weiterentwicklung und Optimierung bestehender Shops und Storefront-Themes</li>
+              <li>Schnittstellen zu Warenwirtschafts-, Zahlungs- und Versandsystemen</li>
+              <li>Wartung, Updates und Support für einen festen Kundenstamm</li>
+              <li>Anforderungsaufnahme, Aufwandsschätzungen, Code-Reviews und Einarbeitung neuer Kollegen</li>
+            </ul>
+          </div>
+          <div class="tl-row" data-reveal>
+            <div class="tl-when">3 MONATE · 2022</div>
+            <div class="tl-role">Game Development · Praktikum<span class="tl-org">Garlic Games UG</span></div>
+            <ul class="tl-list">
+              <li>AR-Anwendung für einen Bauernhof-Spielteppich in Unity</li>
+              <li>Interaktive Mechaniken mit modernen Game-Engine-Workflows</li>
+              <li>Entwicklung einer Technologie für Kinder</li>
+            </ul>
+          </div>
+          <div class="tl-row" data-reveal>
+            <div class="tl-when">2 WOCHEN</div>
+            <div class="tl-role">Systemtechnik · Praktikum<span class="tl-org">Weber Data Service IT GmbH</span></div>
+            <ul class="tl-list">
+              <li>Betreuung professioneller IT-Systeme und Netzwerkinfrastruktur</li>
+              <li>Einrichtung neuer Arbeitsplatzsysteme und IT-Tools</li>
+            </ul>
+          </div>
+        </div>
+
+        <h3 class="sub-h">Ausbildung &amp; Abschlüsse</h3>
+        <div class="edu">
+          <div class="tl-row" data-reveal>
+            <div class="tl-when">2020 - 2023</div>
+            <div class="tl-role">Schulische Ausbildung zum Game Developer<span class="tl-org">bib International College, Paderborn · Staatlich geprüfter Informatiker Multimedia · Fachhochschulreife, Ø 2,0</span><span class="org-badge"><img src="images/bib-logo.svg" alt="bib International College" width="96" height="36"></span></div>
+            <ul class="tl-list">
+              <li>Dreijährige schulische Ausbildung mit Schwerpunkt Game Development, Spiel- und interaktives Mediendesign</li>
+              <li>Sehr gut in Programmierung, Backend-Entwicklung, Datenbanken sowie 3D-Software &amp; Animation</li>
+              <li>Praxisprojekt: AR-Anwendung für Garlic Games</li>
+            </ul>
+          </div>
+          <div class="tl-row" data-reveal>
+            <div class="tl-when">2014 - 2020</div>
+            <div class="tl-role">Fachoberschulreife<span class="tl-org">Realschule Schloss Neuhaus</span></div>
+            <ul class="tl-list"><li>Realschulabschluss als Sprungbrett für die schulische Ausbildung am Berufskolleg</li></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" id="zertifikate" data-label="06 - Zertifikate">
+      <div class="wrap">
+        <div class="kicker">06 - ZERTIFIKATE</div>
+        <h2 class="big split">Belegt, nicht <em>behauptet</em>.</h2>
+        <div class="certs" data-reveal>
+          <article class="cert featured">
+            <div class="cert-logo"><img src="images/shopware-logo-blue.svg" alt="Shopware" width="150" height="32"></div>
+            <div class="cert-date">08 / 2025 · Shopware Academy</div>
+            <h3>Shopware 6 Certified Advanced Template Designer</h3>
+            <p>Bestätigt umfassendes Wissen über das Storefront-Template, das Vererbungs- und Blocksystem sowie das Erstellen und Anpassen individueller Templates und das Erweitern und Überschreiben von Shopware-6-JavaScript-Plugins.</p>
+            <div class="badge">✓ Offiziell zertifiziert</div>
+          </article>
+          <article class="cert">
+            <div class="cert-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c3 2 9 2 12 0v-5"/></svg></div>
+            <img class="cert-org" src="images/bib-logo.svg" alt="bib International College" width="92" height="35">
+            <div class="cert-date">06 / 2023 · bib International College</div>
+            <h3>Fachhochschulreife · Staatlich geprüfter Informatiker Multimedia</h3>
+            <p>Dreijährige schulische Ausbildung, DQR-Niveau 4. Durchschnittsnote 2,0.</p>
+            <div class="badge">Abschluss</div>
+          </article>
+          <article class="cert">
+            <div class="cert-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></div>
+            <img class="cert-org" src="images/bib-logo.svg" alt="bib International College" width="92" height="35">
+            <div class="cert-date">08 / 2022 · bib International College</div>
+            <h3>Scrum Workshop</h3>
+            <p>Rollen, Artefakte und Events des Scrum-Frameworks in Theorie und Praxis, geleitet von zertifizierten Scrum Mastern.</p>
+            <div class="badge">Erfolgreich teilgenommen</div>
+          </article>
+          <article class="cert">
+            <div class="cert-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21 8H6"/><circle cx="10" cy="20" r="1"/><circle cx="17" cy="20" r="1"/></svg></div>
+            <img class="cert-org" src="images/bib-logo.svg" alt="bib International College" width="92" height="35">
+            <div class="cert-date">10 / 2021 · bib International College</div>
+            <h3>Prototyp eines Onlineshops</h3>
+            <p>Entwurf, Implementierung, Dokumentation und Präsentation eines Shop-Prototyps mit HTML, CSS und jQuery.</p>
+            <div class="badge">Bewertung: gut</div>
+          </article>
+          <article class="cert">
+            <div class="cert-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 7v5c0 5 3.5 8 8 9 4.5-1 8-4 8-9V7l-8-4Z"/><path d="m9 12 2 2 4-4"/></svg></div>
+            <div class="cert-date">2023 - 2026 · codegiganten GmbH</div>
+            <h3>Arbeitszeugnis</h3>
+            <p>Aufgaben „stets zu unserer vollsten Zufriedenheit“ erledigt - die beste Bewertungsstufe.</p>
+            <div class="badge">Sehr gut</div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" id="referenz" data-label="07 - Referenz">
+      <div class="wrap">
+        <div class="kicker">07 - REFERENZ</div>
+        <div class="quote-mark" aria-hidden="true">“</div>
+        <blockquote class="quote split">Besonders hervorheben möchten wir seine Fähigkeit, Kundenanforderungen in saubere technische Konzepte zu übersetzen und diese verständlich zu kommunizieren.</blockquote>
+        <div class="quote-src" data-reveal>- Arbeitszeugnis, codegiganten GmbH</div>
+      </div>
+    </section>
+
+    <section class="sec contact" id="kontakt" data-label="08 - Kontakt">
+      <div class="wrap">
+        <div class="kicker">08 - KONTAKT</div>
+        <div class="contact-head">
+          <h2 class="big split">Lass uns etwas <em>bauen</em>.</h2>
+          <figure class="portrait contact-photo" data-reveal>
+            <div class="portrait-img"><img src="images/at-work.jpg" alt="Leon Illenseer am Arbeitsplatz" width="400" height="400" loading="lazy" decoding="async"></div>
+            <figcaption><span>Am Schreibtisch</span><span>Full-Stack-Entwickler</span></figcaption>
+          </figure>
+        </div>
+        <a class="mail" href="mailto:illenseer.leon@gmail.com" data-reveal>illenseer.leon@gmail.com</a>
+        <div class="contact-row" data-reveal>
+          <a class="btn btn-primary magnetic" href="mailto:illenseer.leon@gmail.com">Anfrage senden <span class="arr">→</span></a>
+          <div>Leon Illenseer<br>Full-Stack-Entwickler · Shopware 6<br>Horn-Bad Meinberg, Deutschland</div>
+          <div>Deutsch (Muttersprache)<br>Englisch (fließend)<br>© 2026 &nbsp;·&nbsp; <a class="legal-link" href="impressum.html">Impressum</a> &nbsp;·&nbsp; <a class="legal-link" href="datenschutz.html">Datenschutz</a></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<div class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="m-title">
+  <div class="modal-backdrop"></div>
+  <aside class="modal-panel">
+    <div class="modal-top"><span class="m-count">01 / 08</span><button class="btn btn-sm modal-close magnetic" type="button">Schließen <span aria-hidden="true">✕</span></button></div>
+    <div class="modal-art"></div>
+    <div><div class="modal-cat"></div><h2 class="modal-title" id="m-title"></h2></div>
+    <p class="modal-summary"></p>
+    <ul class="modal-points"></ul>
+    <div class="tags m-tags"></div>
+    <div class="modal-nav">
+      <button class="btn btn-sm" type="button" data-step="-1"><span class="arr back">←</span> Vorheriges</button>
+      <button class="btn btn-sm" type="button" data-step="1">Nächstes <span class="arr">→</span></button>
+    </div>
+  </aside>
+</div>
+
+<script type="module">
+import { animate, waapi, stagger, splitText, onScroll, createAnimatable } from './vendor/anime.esm.min.js';
+
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const finePointer = matchMedia('(hover: hover) and (pointer: fine)').matches;
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const smooth = t => t * t * (3 - 2 * t);
+// Phones: wider field of view + narrower room so walls and artworks stay on screen
+const narrowMQ = matchMedia('(max-width: 699px)');
+const narrow = narrowMQ.matches;
+narrowMQ.addEventListener('change', () => location.reload());
+const P = narrow ? 420 : 700;
+const world = $('.world');
+$('.viewport').style.perspective = P + 'px';
+
+/* ------------------------------------------------------------------
+   Content
+------------------------------------------------------------------- */
+const projects = [
+  { title: 'Preisliste', cat: 'Shopware Store', tag: 'Store-Plugin',
+    summary: 'Eigene, im Shopware Store veröffentlichte Erweiterung: kundenindividuelle Preislisten als PDF und CSV für B2B- und B2C-Shops.',
+    points: ['Konzeption, Entwicklung und Dokumentation in Eigenverantwortung', 'Store-Veröffentlichung, Versionspflege und laufender Kunden-Support', 'Kundenspezifische Preise sauber aus dem Shop-System exportiert'],
+    stack: ['Shopware 6', 'PHP 8', 'Symfony', 'DAL', 'Twig', 'PDF / CSV'] },
+  { title: 'Marketing Aktionen', cat: 'Shopware Store', tag: 'Store-Plugin',
+    summary: 'Zweite eigene Store-Erweiterung: zeitgesteuerte Banner und Popups, Exit-Intent, Countdowns, Gutscheincodes, A/B-Tests und Statistiken.',
+    points: ['Komplette Verantwortung von der Idee bis zur Veröffentlichung', 'A/B-Tests und Statistiken für messbare Kampagnen', 'Versionspflege und Support für Shopbetreiber'],
+    stack: ['Shopware 6', 'PHP 8', 'Symfony', 'JavaScript', 'SCSS', 'Storefront-Plugins'] },
+  { title: 'Spirituosen-Manufaktur', cat: 'B2C Onlineshop', tag: 'Kundenprojekt',
+    summary: 'Konzeption, Umsetzung und Launch eines B2C-Onlineshops für eine Manufaktur handwerklich hergestellter Spirituosen in Norddeutschland - inklusive laufender Betreuung.',
+    points: ['Individuelles Storefront-Theme', 'Anbindung von Zahlungs- und Versanddienstleistern', 'Übergabe und laufende Weiterentwicklung nach dem Go-live'],
+    stack: ['Shopware 6', 'Twig', 'SCSS', 'Bootstrap', 'Payment-APIs', 'Versand-APIs'] },
+  { title: 'Shopware 5 → 6', cat: 'Migration', tag: 'Teamprojekt',
+    summary: 'Mitwirkung an der Migration mehrerer Kundenshops von Shopware 5 auf Shopware 6.',
+    points: ['Datenübernahme aus den Bestandssystemen', 'Neuaufbau der Storefront auf Shopware 6', 'Ablösung bestehender Erweiterungen durch neue Lösungen'],
+    stack: ['Shopware 5', 'Shopware 6', 'MySQL', 'PHP 8', 'Twig'] },
+  { title: 'B2B & B2C Relaunches', cat: 'Shop-Weiterentwicklung', tag: 'Teamprojekt',
+    summary: 'Mitwirkung an der Neu- und Weiterentwicklung mehrerer B2B- und B2C-Onlineshops im Team.',
+    points: ['Geschäftsprozesse und Preislogiken mit Flow Builder und Rule Builder', 'Datenmodellierung und Datenbankmigrationen', 'Tests mit PHPUnit, Deployments über CI/CD in Docker-Umgebungen'],
+    stack: ['Shopware 6', 'Flow Builder', 'Rule Builder', 'PHPUnit', 'Docker', 'CI/CD'] },
+  { title: 'Schnittstellen', cat: 'Integration', tag: 'Kundenprojekte',
+    summary: 'Anbindung externer Systeme an Shopware 6 über Store API, Admin API und Sync API.',
+    points: ['Schnittstellen zu Warenwirtschafts-, Zahlungs- und Versandsystemen', 'Performance-Optimierung auf Basis von MySQL', 'Wartung, Monitoring und Support im laufenden Betrieb'],
+    stack: ['Store API', 'Admin API', 'Sync API', 'MySQL', 'PHP 8'] },
+  { title: 'AR-Spielteppich', cat: 'Unity · AR', tag: 'Garlic Games · 2022',
+    summary: 'Implementierung einer AR-Anwendung für einen Bauernhof-Spielteppich in Unity - entstanden im dreimonatigen Praktikum bei Garlic Games.',
+    points: ['Interaktive Mechaniken mit Game-Engine-Workflows', 'Augmented Reality als spielerische Technologie für Kinder', 'Dreimonatiges Praktikum im Rahmen der schulischen Ausbildung'],
+    stack: ['Unity', 'C#', 'AR', 'Game Design'] },
+  { title: 'Shop-Prototyp', cat: 'Lernaufgabe', tag: 'bib · 2021',
+    summary: 'Entwurf und Implementierung eines Prototyps für einen Onlineshop mit HTML, CSS und jQuery - der Anfang meiner E-Commerce-Laufbahn.',
+    points: ['Selbstständige Problemlösung über zwei Wochen Vollzeit', 'Dokumentation und Präsentation der Ergebnisse', 'Bewertet mit „gut“'],
+    stack: ['HTML', 'CSS', 'jQuery'] },
+];
+
+/* Museum posters - one per project (viewBox matches the passe-partout opening: 336×266) */
+const M = 'font-family="JetBrains Mono, monospace"', G = 'font-family="Space Grotesk, sans-serif"';
+// Official Shopware mark (from the press-kit logo, see images/shopware-mark.svg) — trademark of shopware AG
+const SW_PATH = 'M34.4031 0C42.9039 7.37548e-07 51.0671 3.12606 57.3802 8.80886C57.5426 8.95265 57.5927 9.18384 57.499 9.38385C57.4114 9.57762 57.2052 9.69634 56.9865 9.6651C54.5363 9.32752 51.8924 9.15886 49.1234 9.15885C39.1038 9.15885 30.9651 11.3968 25.5958 15.6229C20.808 19.3927 18.2766 24.6067 18.2766 30.7083C18.2766 37.5039 20.8834 42.8806 26.2339 47.1443C30.9592 50.9014 37.2533 53.3458 42.8036 55.4964C47.4666 57.3031 51.8737 59.0161 54.8615 61.2667C54.9864 61.3604 55.0552 61.5105 55.0552 61.6667C55.0552 61.8228 54.9801 61.9666 54.8552 62.0604C48.8984 66.4679 41.8288 68.8 34.4031 68.8C25.2086 68.8 16.5704 65.2178 10.076 58.7224C3.57545 52.2269 0 43.5869 0 34.3969C3.47347e-08 25.2131 3.5817 16.5731 10.076 10.0776C16.5766 3.57592 25.2149 0 34.4031 0ZM48.4354 22.4938C55.4923 22.4938 61.2994 24.9255 68.475 30.8833C68.575 30.9646 68.6375 31.0896 68.65 31.2208C68.75 32.3149 68.7938 33.3841 68.8 34.3969C68.8 38.7167 68.0058 42.9365 66.4432 46.9375C66.3932 47.075 66.2807 47.1755 66.1495 47.2255C66.0933 47.2442 66.0369 47.2568 65.9807 47.2568C65.8996 47.2567 65.8182 47.2375 65.7432 47.1938C61.6554 44.9245 57.1987 43.2619 52.8922 41.6552C44.5289 38.5356 37.3094 35.8407 37.3094 29.9328C37.3094 27.8261 38.1911 26.0258 39.8599 24.738C41.785 23.2501 44.6727 22.4938 48.4354 22.4938Z';
+// mark at (x, y) with edge length `size`
+const swMark = (x, y, size) => `<g transform="translate(${x} ${y}) scale(${size / 68.8})"><path d="${SW_PATH}" fill="#0069FC"/></g>`;
+const svg = body => `<svg class="poster" viewBox="0 0 336 266" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${body}</svg>`;
+const banners = [
+  // 01 Preisliste - a customer price sheet, PDF/CSV export
+  svg(`<rect width="336" height="266" fill="#e9e5db"/>
+    <rect x="44" y="22" width="186" height="224" fill="#fff" stroke="#111" stroke-width="2"/>
+    <text x="60" y="52" ${M} font-size="15" font-weight="500" fill="#111">PREISLISTE</text>
+    ${swMark(192, 34, 22)}
+    <text x="60" y="68" ${M} font-size="10" fill="#555">KUNDE 1042 · B2B</text>
+    ${[0,1,2,3,4,5].map(i => `<line x1="60" x2="214" y1="${88 + i * 25}" y2="${88 + i * 25}" stroke="#ddd"/>
+      <rect x="60" y="${96 + i * 25}" width="${[70,54,82,62,48,74][i]}" height="7" fill="${i === 2 ? '#6d28d9' : '#bbb'}"/>
+      <text x="214" y="${103 + i * 25}" ${M} font-size="10" text-anchor="end" fill="${i === 2 ? '#6d28d9' : '#111'}">${['12,90','8,40','19,99','4,75','31,00','6,20'][i]} €</text>`).join('')}
+    <rect x="246" y="58" width="62" height="34" rx="4" fill="#111"/><text x="277" y="80" ${M} font-size="13" font-weight="500" text-anchor="middle" fill="#fff">PDF</text>
+    <rect x="246" y="104" width="62" height="34" rx="4" fill="none" stroke="#111" stroke-width="2"/><text x="277" y="126" ${M} font-size="13" font-weight="500" text-anchor="middle" fill="#111">CSV</text>
+    <text x="277" y="232" ${G} font-size="84" font-weight="700" text-anchor="middle" fill="#6d28d9" opacity=".9">€</text>`),
+  // 02 Marketing Aktionen - countdown, A/B, coupon popup
+  svg(`<rect width="336" height="266" fill="#111"/>
+    <circle cx="36" cy="34" r="16" fill="#fff"/>${swMark(25, 23, 22)}
+    <text x="168" y="62" ${M} font-size="11" text-anchor="middle" letter-spacing="2" fill="#b69cff">ZEITGESTEUERTE AKTION</text>
+    <text x="168" y="128" ${M} font-size="50" font-weight="500" text-anchor="middle" fill="#fff">02:14:59</text>
+    <text x="168" y="148" ${M} font-size="10" text-anchor="middle" letter-spacing="10" fill="#9a9a94">STD  MIN  SEK</text>
+    <rect x="28" y="180" width="40" height="40" fill="none" stroke="#fff" stroke-width="2"/><text x="48" y="207" ${G} font-size="20" font-weight="700" text-anchor="middle" fill="#fff">A</text>
+    <rect x="76" y="180" width="40" height="40" fill="#b69cff"/><text x="96" y="207" ${G} font-size="20" font-weight="700" text-anchor="middle" fill="#111">B</text>
+    <text x="28" y="242" ${M} font-size="10" fill="#cfcfca">A/B · EXIT-INTENT</text>
+    <rect x="186" y="170" width="124" height="68" rx="10" fill="#6d28d9"/>
+    <text x="248" y="206" ${G} font-size="28" font-weight="700" text-anchor="middle" fill="#fff">−20 %</text>
+    <text x="248" y="226" ${M} font-size="10" text-anchor="middle" fill="#ede7ff">CODE SALE20</text>`),
+  // 03 Spirituosen-Manufaktur - bottle with label
+  svg(`<rect width="336" height="266" fill="#1b1713"/>
+    <circle cx="168" cy="140" r="96" fill="#2a231c"/>
+    <rect x="155" y="20" width="26" height="14" rx="2" fill="#6d28d9"/>
+    <path d="M156 34h24v50c0 14 30 22 30 46v100c0 6-4 10-10 10h-64c-6 0-10-4-10-10V130c0-24 30-32 30-46z" fill="#efe8da"/>
+    <rect x="134" y="148" width="68" height="58" fill="#1b1713"/>
+    <text x="168" y="178" ${G} font-size="20" font-weight="700" text-anchor="middle" fill="#efe8da">N°1</text>
+    <text x="168" y="195" ${M} font-size="7.5" text-anchor="middle" letter-spacing="1" fill="#b69cff">MANUFAKTUR</text>
+    <text x="22" y="246" ${M} font-size="10" letter-spacing="1" fill="#c9c2b3">HANDWERK · B2C</text>
+    <text x="314" y="34" ${M} font-size="10" letter-spacing="1" text-anchor="end" fill="#c9c2b3">NORD</text>`),
+  // 04 Shopware 5 → 6
+  svg(`<rect width="336" height="266" fill="#efece4"/>
+    <text x="22" y="206" ${G} font-size="196" font-weight="700" fill="none" stroke="#111" stroke-width="2.5">5</text>
+    <text x="198" y="206" ${G} font-size="196" font-weight="700" fill="#111">6</text>
+    <path d="M140 124h46m-14-14 14 14-14 14" fill="none" stroke="#6d28d9" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    ${swMark(282, 18, 32)}
+    <text x="24" y="244" ${M} font-size="10" letter-spacing="1" fill="#333">DATEN · THEME · PLUGINS</text>`),
+  // 05 B2B & B2C - two shop windows
+  svg(`<rect width="336" height="266" fill="#111"/>
+    <rect x="24" y="36" width="176" height="132" rx="6" fill="#1c1c1c" stroke="#efece4" stroke-width="1.5"/>
+    <line x1="24" x2="200" y1="54" y2="54" stroke="#efece4" stroke-width="1.5"/>
+    ${[0,1,2,3].map(i => `<rect x="38" y="${66 + i * 22}" width="148" height="12" fill="${i ? '#3a3a3a' : '#b69cff'}"/>`).join('')}
+    <text x="30" y="28" ${M} font-size="11" font-weight="500" fill="#b69cff">B2B</text>
+    <rect x="136" y="98" width="176" height="132" rx="6" fill="#efece4"/>
+    <line x1="136" x2="312" y1="116" y2="116" stroke="#111" stroke-width="1.5"/>
+    ${[0,1,2].map(i => `<rect x="${148 + i * 54}" y="128" width="46" height="46" fill="#cfcac0"/><rect x="${148 + i * 54}" y="180" width="34" height="6" fill="#111"/>`).join('')}
+    <rect x="148" y="200" width="70" height="20" rx="10" fill="#6d28d9"/>
+    <text x="306" y="250" ${M} font-size="11" font-weight="500" text-anchor="end" fill="#efece4">B2C</text>`),
+  // 06 Schnittstellen - systems wired to Shopware
+  svg(`<rect width="336" height="266" fill="#efece4"/>
+    ${[[70,62,'ERP'],[266,62,'PAY'],[70,206,'SHIP'],[266,206,'API']].map(([x, y, t]) => `
+      <line x1="168" y1="134" x2="${x}" y2="${y}" stroke="#111" stroke-width="1.5" stroke-dasharray="5 5"/>
+      <circle cx="${(168 + x) / 2}" cy="${(134 + y) / 2}" r="5" fill="#6d28d9"/>
+      <circle cx="${x}" cy="${y}" r="26" fill="#fff" stroke="#111" stroke-width="2"/>
+      <text x="${x}" y="${y + 4}" ${M} font-size="11" font-weight="500" text-anchor="middle" fill="#111">${t}</text>`).join('')}
+    <circle cx="168" cy="134" r="40" fill="#fff" stroke="#111" stroke-width="2"/>
+    ${swMark(144, 110, 48)}`),
+  // 07 AR-Spielteppich - isometric farm tile in an AR frame
+  svg(`<rect width="336" height="266" fill="#111"/>
+    <polygon points="168,74 282,134 168,194 54,134" fill="#262626" stroke="#4a4a4a"/>
+    <line x1="111" y1="104" x2="225" y2="164" stroke="#3a3a3a"/><line x1="225" y1="104" x2="111" y2="164" stroke="#3a3a3a"/>
+    <path d="M128 140v-22l22-12 22 12v22z" fill="#efece4"/><path d="M122 120l28-17 28 17" fill="none" stroke="#6d28d9" stroke-width="6" stroke-linejoin="round"/>
+    <rect x="144" y="126" width="12" height="14" fill="#111"/>
+    <line x1="214" y1="140" x2="214" y2="152" stroke="#9a9a94" stroke-width="3"/><circle cx="214" cy="128" r="14" fill="#9a9a94"/>
+    ${[[30,30,1,1],[306,30,-1,1],[30,214,1,-1],[306,214,-1,-1]].map(([x, y, a, b]) => `<path d="M${x} ${y + b * 22}V${y}h${a * 22}" fill="none" stroke="#b69cff" stroke-width="3"/>`).join('')}
+    <text x="168" y="246" ${M} font-size="11" letter-spacing="2" text-anchor="middle" fill="#cfcfca">AR · UNITY</text>`),
+  // 08 Shop-Prototyp - wireframe + jQuery
+  svg(`<rect width="336" height="266" fill="#efece4"/>
+    <rect x="28" y="26" width="280" height="214" rx="6" fill="#fff" stroke="#111" stroke-width="2"/>
+    <line x1="28" x2="308" y1="46" y2="46" stroke="#111" stroke-width="2"/>
+    <circle cx="40" cy="36" r="3" fill="#111"/><circle cx="50" cy="36" r="3" fill="#111"/><circle cx="60" cy="36" r="3" fill="#111"/>
+    <rect x="42" y="58" width="252" height="56" fill="#e5e1d6"/>
+    <text x="56" y="93" ${M} font-size="20" font-weight="500" fill="#6d28d9">$('.shop')</text>
+    ${[0,1,2].map(i => `<rect x="${42 + i * 86}" y="126" width="80" height="62" fill="none" stroke="#111" stroke-width="1.5"/>
+      <rect x="${50 + i * 86}" y="134" width="64" height="32" fill="#d3cec2"/><rect x="${50 + i * 86}" y="174" width="40" height="6" fill="#111"/>`).join('')}
+    <text x="42" y="222" ${M} font-size="10" letter-spacing="1" fill="#333">HTML · CSS · JQUERY · 2021</text>`),
+];
+
+const stackHolos = [
+  ['Plattform', 'SHOPWARE 6'],
+  ['Backend', 'PHP 8 · SYMFONY'],
+  ['Frontend', 'TWIG · SCSS · JS'],
+  ['Daten & APIs', 'MYSQL · STORE API'],
+  ['Workflow', 'GIT · DOCKER · CI/CD'],
+  ['Bereits eingesetzt', 'C# · .NET · UNITY'],
+];
+
+/* ------------------------------------------------------------------
+   Scene construction - flat divs placed in 3D space
+------------------------------------------------------------------- */
+const fogEls = [];
+const planeTf = ({ x = 0, y = 0, z = 0, rx = 0, ry = 0, s = 1 }, rz = 0) =>
+  `translate3d(${x}px,${y}px,${z}px) rotateY(${ry}deg) rotateX(${rx}deg) scale(${s}) rotateZ(${rz}deg) translate(-50%,-50%)`;
+function plane(o) {
+  const { w, h, z = 0, cls = '', html = '', fog = true } = o;
+  const el = document.createElement('div');
+  el.className = 'p ' + cls;
+  el.style.cssText = `width:${w}px;height:${h}px;transform:${planeTf(o, o.rz || 0)}`;
+  el.innerHTML = html;
+  world.appendChild(el);
+  // near: how close (in dist units) a surface may come before it is culled. Centred, screen-filling vortex discs
+  // must go early: if they re-appear right in front of the eye (scrolling back), Chrome rasterises them gigantic.
+  if (fog) fogEls.push({ el, z, o: -1, v: true, near: cls === 'vortex' ? -380 : -700, fadeNear: cls === 'vortex' });
+  return el;
+}
+
+// No walls any more: the exhibits float in open space (starfield canvas behind the 3D world)
+const W = narrow ? 720 : 1100, G_END = -2600;
+const EX_ANGLE = 72;   // exhibits turned slightly towards the flight path → easier to read while floating past
+
+const frameZ = [-150, -750, -1350, -1950];
+projects.forEach((p, i) => {
+  const left = i % 2 === 0;
+  const z = frameZ[Math.floor(i / 2)] - (left ? 0 : 300);
+  const n = String(i + 1).padStart(2, '0');
+  const fr = plane({
+    w: 480, h: 540, x: left ? -W / 2 + 4 : W / 2 - 4, y: -36, z, ry: left ? EX_ANGLE : -EX_ANGLE, cls: 'frame',
+    html: `<div class="lamp"></div>
+           <div class="fbox"><div class="mat">${banners[i]}</div></div>
+           <div class="plaque"><small>${p.cat}</small><strong>${p.title}</strong><span>${p.tag} · Details ↗</span></div>
+           <div class="plaque-no">${n}</div>`,
+  });
+  fr.dataset.index = i;
+  fr.setAttribute('role', 'button');
+  fr.setAttribute('tabindex', '0');
+  fr.setAttribute('aria-label', `Projekt ${n}: ${p.title} - Details öffnen`);
+});
+
+/* Posters → bitmaps. Inline SVG in a 3D layer is re-rasterised (vector, expensive) whenever its on-screen scale
+   changes - after a big scroll jump that stalled integrated GPUs for seconds. A bitmap just gets resampled.
+   The page fonts are embedded into each SVG so the bitmap looks identical. Falls back to inline SVG on any error. */
+async function bitmapPosters() {
+  try {
+    // embed the self-hosted fonts as data URIs (an SVG-as-image cannot load external files)
+    const toData = async url => {
+      const blob = await (await fetch(url)).blob();
+      return new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
+    };
+    const [sg, jb] = await Promise.all([toData('vendor/fonts/space-grotesk-latin.woff2'), toData('vendor/fonts/jetbrains-mono-latin.woff2')]);
+    const fontCss =
+      `@font-face{font-family:"Space Grotesk";font-weight:300 700;src:url(${sg}) format("woff2")}` +
+      `@font-face{font-family:"JetBrains Mono";font-weight:100 800;src:url(${jb}) format("woff2")}`;
+    const W2 = 672, H2 = 532;   // 2× the passe-partout opening → crisp when viewed up close
+    const frames = $$('.frame');
+    for (let i = 0; i < banners.length; i++) {
+      const src = banners[i].replace(/^<svg ([^>]*)>/, `<svg $1 width="${W2}" height="${H2}"><style>${fontCss}</style>`);
+      const img = new Image();
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(src);
+      await img.decode();
+      const c = document.createElement('canvas'); c.width = W2; c.height = H2;
+      c.getContext('2d').drawImage(img, 0, 0, W2, H2);
+      const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+      const bmp = new Image(); bmp.className = 'poster'; bmp.alt = ''; bmp.decoding = 'async';
+      bmp.src = URL.createObjectURL(blob);
+      await bmp.decode();
+      frames[i].querySelector('.mat').replaceChildren(bmp);
+      await new Promise(r => setTimeout(r, 0));   // yield between posters
+    }
+  } catch (err) { /* keep the inline SVG posters */ }
+}
+
+const HERO_Z = -520;
+const hero = plane({
+  w: 940, h: 400, y: -40, z: HERO_Z, s: narrow ? .55 : 1, cls: 'hero', fog: false,
+  html: `<div class="hero-kicker">PORTFOLIO</div>
+         <h1 class="hero-title">LEON ILLENSEER</h1>
+         <div class="hero-sub">Full-Stack-Entwickler · Shopware 6 · E-Commerce</div>`,
+});
+
+// Portal: a galaxy vortex — spiral-arm discs one behind the other, each twisting at its own speed while you scroll
+const T_START = G_END, T_END = -6000;
+const vortices = [];
+for (let z = T_START - 300, i = 0; z > T_END + 200; z -= 420, i++) {
+  const geo = { z, s: 1, base: i * 47, dir: i % 2 ? 1 : -1, speed: .018 + (i % 3) * .008 };
+  const el = plane({ w: 1300, h: 1300, z, rz: geo.base, cls: 'vortex' });
+  vortices.push({ el, geo, rz: NaN });
+}
+// spiral-arm texture, drawn once on a canvas → PNG (cheap to composite, never re-rasterised)
+function makeVortexTexture() {
+  const S = 1024, c = document.createElement('canvas'); c.width = c.height = S;
+  const g = c.getContext('2d');
+  g.translate(S / 2, S / 2);
+  g.globalCompositeOperation = 'lighter';
+  const ARMS = 3;
+  for (let a = 0; a < ARMS; a++) {
+    for (let i = 0; i < 850; i++) {
+      const t = i / 850;
+      const ang = a * 2 * Math.PI / ARMS + t * Math.PI * 2.4 + (Math.random() - .5) * .22;
+      const r = 150 + t * 340 + (Math.random() - .5) * 46 * t;
+      const x = Math.cos(ang) * r, y = Math.sin(ang) * r, size = (1 - t) * 16 + 4;
+      const hue = 268 - t * 55;
+      const grd = g.createRadialGradient(x, y, 0, x, y, size);
+      grd.addColorStop(0, `hsla(${hue},92%,${82 - t * 24}%,${.2 * (1 - t * .55)})`);
+      grd.addColorStop(1, 'hsla(0,0%,0%,0)');
+      g.fillStyle = grd; g.beginPath(); g.arc(x, y, size, 0, Math.PI * 2); g.fill();
+    }
+  }
+  for (let i = 0; i < 520; i++) {   // sparkles along the disc
+    const ang = Math.random() * Math.PI * 2, r = 150 + Math.random() * 350;
+    g.fillStyle = `rgba(255,255,255,${(Math.random() * .75).toFixed(2)})`;
+    g.fillRect(Math.cos(ang) * r, Math.sin(ang) * r, 1.6, 1.6);
+  }
+  c.toBlob(b => {
+    const url = `url(${URL.createObjectURL(b)})`;
+    vortices.forEach(v => (v.el.style.backgroundImage = url));
+  });
+}
+makeVortexTexture();
+// Furthest surface goes first in the DOM so it never paints over nearer text if Chrome's 3D sort falls back to DOM order
+world.prepend(plane({ w: 1500, h: 1500, z: T_END, cls: 'light', fog: false }));
+
+// Stack labels: counter-rotated every frame against the tunnel spin so the text always stays horizontal
+const holos = stackHolos.map(([k, v], i) => {
+  const z = -3000 - i * 480, geo = { z, s: .5 };
+  const logo = v.startsWith('SHOPWARE') ? `<span class="sw-chip"><svg viewBox="0 0 68.8 68.8" aria-hidden="true"><path d="${SW_PATH}" fill="#0069FC"/></svg></span>` : '';
+  const el = plane({ w: 900, h: 260, ...geo, cls: 'holo', fog: false, html: `<small>${k}</small><strong>${logo}${v}</strong>` });
+  return { el, z, geo, o: -1, rz: NaN };
+});
+
+/* ------------------------------------------------------------------
+   Starfield: a 2D canvas behind the 3D world, projected with the same camera (depth, roll, mouse tilt).
+   Stars wrap around in depth, so the flight through the galaxy never ends. Redrawn only when the camera moves.
+------------------------------------------------------------------- */
+const starCv = $('.stars'), sctx = starCv.getContext('2d');
+const STAR_R = 4200, stars = [];
+for (let i = 0, n = narrow ? 380 : 720; i < n; i++) {
+  const a = Math.random() * Math.PI * 2, r = 260 + Math.pow(Math.random(), .7) * 2400;
+  stars.push({ x: Math.cos(a) * r, y: Math.sin(a) * r, b: Math.random() * STAR_R, v: Math.random() < .18 });
+}
+let sw = 0, sh = 0, sdpr = 1;
+function sizeStars() {
+  sdpr = Math.min(devicePixelRatio || 1, 1.5);
+  sw = starCv.clientWidth; sh = starCv.clientHeight;
+  starCv.width = sw * sdpr; starCv.height = sh * sdpr;
+  last.z = Infinity;   // force a redraw
+}
+let lastStarZ = 0, warp = 0;
+function drawStars(camZ, rzDeg, rxDeg, ryDeg) {
+  sctx.setTransform(sdpr, 0, 0, sdpr, 0, 0);
+  sctx.clearRect(0, 0, sw, sh);
+  // Hyperspace streaks: the faster the flight, the longer each star's trail (smoothed, capped)
+  const dz = camZ - lastStarZ; lastStarZ = camZ;
+  warp += (clamp(Math.abs(dz) * 9, 0, 520) * Math.sign(dz) - warp) * .25;
+  const rz = rzDeg * Math.PI / 180, cs = Math.cos(rz), sn = Math.sin(rz);
+  const ox = sw / 2 - P * Math.sin(ryDeg * Math.PI / 180), oy = sh / 2 + P * Math.sin(rxDeg * Math.PI / 180);
+  const proj = (s, d) => { const k = P / d, X = s.x * k, Y = s.y * k; return [ox + X * cs - Y * sn, oy + X * sn + Y * cs, k]; };
+  const streak = Math.abs(warp) > 6;
+  for (let pass = 0; pass < 2; pass++) {
+    const col = pass ? '#c9b6ff' : '#ffffff';
+    sctx.fillStyle = col; sctx.strokeStyle = col; sctx.lineCap = 'round';
+    for (const s of stars) {
+      if (s.v !== !!pass) continue;
+      const d = ((s.b - camZ) % STAR_R + STAR_R) % STAR_R + 40;   // distance ahead of the eye
+      const [x, y, k] = proj(s, d);
+      if (x < -40 || y < -40 || x > sw + 40 || y > sh + 40) continue;
+      const size = Math.min(3, Math.max(.7, k * 2.4));
+      sctx.globalAlpha = Math.min(1, (STAR_R - d) / 900) * Math.min(1, (d - 40) / 160) * .9;
+      if (streak) {
+        let [tx, ty] = proj(s, Math.max(60, d + warp));   // where the star was a moment ago
+        // cap the trail on screen (backwards flight would otherwise draw lines thousands of px long)
+        const vx = tx - x, vy = ty - y, len = Math.hypot(vx, vy), MAXL = 120;
+        if (len > MAXL) { tx = x + vx / len * MAXL; ty = y + vy / len * MAXL; }
+        sctx.lineWidth = size; sctx.beginPath(); sctx.moveTo(tx, ty); sctx.lineTo(x, y); sctx.stroke();
+      } else sctx.fillRect(x - size / 2, y - size / 2, size, size);
+    }
+  }
+  sctx.globalAlpha = 1;
+}
+addEventListener('resize', sizeStars);
+
+/* ------------------------------------------------------------------
+   Camera: scroll → cam.z (anime.js onScroll, JS engine on a plain object)
+------------------------------------------------------------------- */
+const CAM_END = 5600;
+const camTarget = { z: 0 };   // raw scroll position (anime.js onScroll, synced 1:1)
+const cam = { z: 0 };         // smoothed camera - time-based damping, so it settles in ~0.3 s even on slow devices
+const intro = { z: reduce ? 0 : -900 };
+const track = $('.track');
+const CAM_TAU = reduce ? 1 : 95;   // ms
+
+animate(camTarget, {
+  z: [0, CAM_END], ease: 'linear', duration: 1000,
+  autoplay: onScroll({ target: track, enter: 'top top', leave: 'bottom bottom', sync: true }),
+});
+
+const mouse = { x: 0, y: 0, sx: 0, sy: 0, px: -1, py: -1, moved: false };
+addEventListener('pointermove', e => {
+  mouse.x = (e.clientX / innerWidth) * 2 - 1;
+  mouse.y = (e.clientY / innerHeight) * 2 - 1;
+  mouse.px = e.clientX; mouse.py = e.clientY; mouse.moved = true;
+}, { passive: true });
+
+const progressBar = $('.progress i'), whiteout = $('.whiteout'), glow = $('.glow'), hint = $('.scroll-hint');
+const labelEl = $('.section-label span');
+let currentLabel = labelEl.textContent;
+function setLabel(text) {
+  if (text === currentLabel) return;
+  currentLabel = text;
+  labelEl.textContent = text;
+  waapi.animate(labelEl, { translate: ['0 100%', '0 0'], opacity: [0, 1], duration: 600, ease: 'out(4)' });
+}
+
+// Only write a style when the value really changed - avoids needless style recalcs
+// Infinity (not NaN) so the very first comparison counts as "changed"
+const last = { z: Infinity, rx: Infinity, ry: Infinity, p: NaN, w: NaN, g: NaN, h: NaN, hint: NaN };
+let inTrack = true, rafId = 0, frameNo = 0, lightUI = false, lastT = 0;
+
+function render(now) {
+  rafId = 0;
+  const dt = lastT ? Math.min(now - lastT, 250) : 16.7;
+  lastT = now;
+  const dz = camTarget.z - cam.z;
+  cam.z = Math.abs(dz) < .05 ? camTarget.z : cam.z + dz * (1 - Math.exp(-dt / CAM_TAU));
+  const k = reduce ? 1 : .07;
+  mouse.sx += (mouse.x - mouse.sx) * k;
+  mouse.sy += (mouse.y - mouse.sy) * k;
+
+  const z = cam.z + intro.z;
+  const rz = smooth(clamp((z - 2500) / 3000)) * 90;
+  const rx = reduce ? 0 : -mouse.sy * 3;
+  const ry = reduce ? 0 : mouse.sx * 5;
+
+  const camMoved = Math.abs(z - last.z) > .05 || Math.abs(rx - last.rx) > .002 || Math.abs(ry - last.ry) > .002;
+  if (camMoved) {
+    last.z = z; last.rx = rx; last.ry = ry;
+    world.style.transform = `translateZ(${P}px) rotateX(${rx.toFixed(3)}deg) rotateY(${ry.toFixed(3)}deg) rotateZ(${rz.toFixed(3)}deg) translateZ(${(-P + z).toFixed(2)}px)`;
+
+    for (const f of fogEls) {
+      const dist = -(f.z + z);
+      // display:none frees the layer's video memory; texture surfaces re-show cheaply because their raster
+      // scale is pinned (will-change in CSS). Window chosen by A/B measurement on an Intel UHD 630:
+      // this combination was ~4-9× smoother than visibility-culling without will-change.
+      const vis = dist > f.near && dist < 3800;
+      if (vis !== f.v) { f.v = vis; f.el.style.display = vis ? '' : 'none'; }
+      if (!vis) continue;
+      let o = 1 - clamp((dist - 350) / 2300) * .94;
+      if (f.fadeNear) o *= clamp((dist - f.near) / 380);   // vortex discs dissolve as you fly through them
+      o = Math.round(o * 100) / 100;
+      if (o !== f.o) { f.o = o; f.el.style.opacity = o; }
+    }
+    const ho = Math.round(clamp((-(HERO_Z + z) - 120) / 380) * 100) / 100;
+    if (ho !== last.h) { last.h = ho; hero.style.opacity = ho; hero.style.visibility = ho ? '' : 'hidden'; }
+    // vortex discs: each twists at its own speed/direction → swirling depth (only the visible ones are written)
+    for (const v of vortices) {
+      if (v.el.style.display === 'none') continue;
+      const r = Math.round((v.geo.base + (z - 2400) * v.geo.speed * v.geo.dir) * 10) / 10;
+      if (r !== v.rz) { v.rz = r; v.el.style.transform = planeTf(v.geo, r); }
+    }
+    const rzr = Math.round(rz * 100) / 100;
+    for (const h of holos) {
+      const d = -(h.z + z);
+      // fade out well before the label gets huge on screen (huge text = expensive re-raster)
+      // short fade windows so only one label reads at a time (labels are 480 apart)
+      const o = Math.round(clamp((d - 260) / 200) * clamp((1000 - d) / 220) * 100) / 100;
+      if (o !== h.o) { h.o = o; h.el.style.opacity = o; h.el.style.visibility = o ? '' : 'hidden'; }
+      // cancel the camera roll → label stays level
+      if (o && rzr !== h.rz) { h.rz = rzr; h.el.style.transform = planeTf(h.geo, -rzr); }
+    }
+
+    const p = Math.round(cam.z / CAM_END * 1000) / 1000;
+    if (p !== last.p) { last.p = p; progressBar.style.transform = `scaleX(${p})`; }
+    drawStars(z, rz, rx, ry);
+    const hv = Math.round(clamp(1 - cam.z / 300) * 100) / 100;
+    if (hv !== last.hint) { last.hint = hv; hint.style.opacity = hv; }
+    const w = Math.round(clamp((z - 4950) / 650) * 100) / 100;
+    if (w !== last.w) { last.w = w; whiteout.style.opacity = w; }
+    const g = Math.round(clamp((z - 2400) / 3200) * 80) / 100;
+    if (g !== last.g) { last.g = g; glow.style.opacity = g; }
+
+    const wantLight = w > .55;
+    if (wantLight !== lightUI) { lightUI = wantLight; document.body.classList.toggle('is-light', wantLight); }
+    if (inTrack) setLabel(z < 2550 ? '01 - Arbeiten' : z < 5300 ? '02 - Stack' : '03 - Profil');
+  }
+
+  else if (Math.abs(warp) > .5) drawStars(z, rz, rx, ry);   // let the hyperspace streaks fade out after the camera stops
+
+  // Hover hit-test (elementFromPoint on a 3D scene is not free): only when the pointer moved, or once the camera
+  // has settled - never every frame while flying. Throttled to every 3rd frame.
+  const settled = Math.abs(camTarget.z - cam.z) < 1;
+  if (finePointer && (mouse.moved || (settled && camMoved)) && (++frameNo % 3 === 0)) { mouse.moved = false; hitTest(); }
+  if (finePointer && !settled && hovered?.classList.contains('frame')) setHovered(null);
+
+  // Keep looping while visible; the loop idles cheaply when nothing changes
+  if (inTrack) rafId = requestAnimationFrame(render);
+}
+function startLoop() { if (!rafId) rafId = requestAnimationFrame(render); }
+sizeStars();
+startLoop();
+
+// Stop the 3D loop entirely while the track is off screen
+new IntersectionObserver(([e]) => {
+  inTrack = e.isIntersecting;
+  if (inTrack) { lastT = 0; startLoop(); }
+}).observe(track);
+
+/* ------------------------------------------------------------------
+   Cursor + hover
+------------------------------------------------------------------- */
+const cursorEl = $('.cursor'), ringEl = $('.cursor-ring'), cLabel = $('.cursor-label');
+let hovered = null;
+if (finePointer) {
+  document.body.classList.add('has-cursor');
+  const dot = createAnimatable('.c-dot-pos', { x: 0, y: 0 });
+  const ring = createAnimatable('.c-ring-pos', { x: reduce ? 0 : 140, y: reduce ? 0 : 140, ease: 'out(3)' });
+  let shown = false;
+  addEventListener('pointermove', e => {
+    dot.x(e.clientX); dot.y(e.clientY); ring.x(e.clientX); ring.y(e.clientY);
+    if (!shown) { shown = true; waapi.animate(cursorEl, { opacity: 1, duration: 300 }); }
+    if (!inTrack) hitTest();
+  }, { passive: true });
+  document.documentElement.addEventListener('pointerleave', () => { shown = false; waapi.animate(cursorEl, { opacity: 0, duration: 300 }); });
+}
+function hitTest() {
+  if (mouse.px < 0) return setHovered(null);
+  const t = document.elementFromPoint(mouse.px, mouse.py);
+  if (!modal.hidden && !panel.contains(t)) return setHovered(null);
+  setHovered(t?.closest('.frame, a, button, .cert, .stat') || null);
+}
+function setHovered(el) {
+  if (el === hovered) return;
+  hovered?.classList.remove('is-hover');
+  hovered = el;
+  const isFrame = !!el?.classList.contains('frame');
+  el?.classList.add('is-hover');
+  waapi.animate(ringEl, { scale: el ? (isFrame ? 2.4 : 1.6) : 1, opacity: el && !isFrame ? .6 : 1, duration: 450, ease: 'out(3)' });
+  waapi.animate(cLabel, { opacity: isFrame ? 1 : 0, translate: isFrame ? ['-6px 0', '0 0'] : '0 0', duration: 350, ease: 'out(3)' });
+}
+
+/* Magnetic buttons: pulled a few px towards the pointer, spring back on leave (anime.js animatable) */
+if (finePointer && !reduce) {
+  $$('.magnetic').forEach(btn => {
+    const m = createAnimatable(btn, { x: 500, y: 500, ease: 'out(3)' });
+    btn.addEventListener('pointermove', e => {
+      const r = btn.getBoundingClientRect();
+      m.x((e.clientX - (r.left + r.width / 2)) * .25);
+      m.y((e.clientY - (r.top + r.height / 2)) * .35);
+    });
+    btn.addEventListener('pointerleave', () => { m.x(0); m.y(0); });
+  });
+}
+
+/* ------------------------------------------------------------------
+   Project detail panel
+------------------------------------------------------------------- */
+const modal = $('.modal'), panel = $('.modal-panel'), backdrop = $('.modal-backdrop');
+let openIndex = -1, lastFocus = null;
+function fillModal(i, dir = 1) {
+  const p = projects[i], n = String(i + 1).padStart(2, '0');
+  $('.m-count').textContent = `${n} / ${String(projects.length).padStart(2, '0')}`;
+  const art = $('.modal-art');
+  art.innerHTML = banners[i];
+  art.dataset.n = `${n} - ${p.tag}`;
+  $('.modal-cat').textContent = p.cat;
+  $('.modal-title').textContent = p.title;
+  $('.modal-summary').textContent = p.summary;
+  $('.modal-points').innerHTML = p.points.map(t => `<li>${t}</li>`).join('');
+  $('.m-tags').innerHTML = p.stack.map(t => `<span class="tag now">${t}</span>`).join('');
+  waapi.animate(panel.querySelectorAll('.modal-art, .modal-cat, .modal-title, .modal-summary, .modal-points li, .m-tags .tag'), {
+    opacity: [0, 1], translate: [`${dir * 18}px 0`, '0 0'], delay: stagger(28), duration: 650, ease: 'out(4)',
+  });
+}
+function step(d) {
+  openIndex = (openIndex + d + projects.length) % projects.length;
+  fillModal(openIndex, d);
+}
+function openProject(i) {
+  lastFocus = document.activeElement;
+  openIndex = i;
+  modal.hidden = false;
+  document.body.classList.add('modal-open');
+  fillModal(i);
+  waapi.animate(backdrop, { opacity: [0, 1], duration: 450, ease: 'out(2)' });
+  waapi.animate(panel, { translate: ['100% 0', '0 0'], duration: reduce ? 1 : 750, ease: 'out(4)' });
+  $('.modal-close').focus({ preventScroll: true });
+}
+function closeProject() {
+  if (modal.hidden) return;
+  waapi.animate(backdrop, { opacity: 0, duration: 400, ease: 'out(2)' });
+  waapi.animate(panel, { translate: '100% 0', duration: reduce ? 1 : 550, ease: 'inOut(3)' }).then(() => {
+    modal.hidden = true;
+    document.body.classList.remove('modal-open');
+    lastFocus?.focus?.({ preventScroll: true });
+  });
+}
+world.addEventListener('click', e => {
+  const fr = e.target.closest('.frame');
+  if (fr) openProject(+fr.dataset.index);
+});
+world.addEventListener('keydown', e => {
+  const fr = e.target.closest('.frame');
+  if (fr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openProject(+fr.dataset.index); }
+});
+// Lock page scroll while the panel is open without overflow:hidden (that breaks the sticky 3D viewport)
+const blockScroll = e => { if (!modal.hidden && !panel.contains(e.target)) e.preventDefault(); };
+addEventListener('wheel', blockScroll, { passive: false });
+addEventListener('touchmove', blockScroll, { passive: false });
+panel.addEventListener('wheel', e => {
+  const atTop = panel.scrollTop <= 0 && e.deltaY < 0;
+  const atEnd = panel.scrollTop + panel.clientHeight >= panel.scrollHeight - 1 && e.deltaY > 0;
+  if (atTop || atEnd) e.preventDefault();      // no scroll chaining into the page
+}, { passive: false });
+addEventListener('keydown', e => {
+  if (modal.hidden) return;
+  if (['PageDown', 'PageUp', 'Home', 'End', ' ', 'ArrowDown', 'ArrowUp'].includes(e.key) && !panel.contains(document.activeElement)) e.preventDefault();
+  if (e.key === 'Escape') closeProject();
+  if (e.key === 'ArrowRight') step(1);
+  if (e.key === 'ArrowLeft') step(-1);
+  if (e.key === 'Tab') {   // keep focus inside the dialog
+    const f = [...panel.querySelectorAll('button, a[href]')];
+    if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f.at(-1).focus(); }
+    else if (!e.shiftKey && document.activeElement === f.at(-1)) { e.preventDefault(); f[0].focus(); }
+  }
+});
+backdrop.addEventListener('click', closeProject);
+$('.modal-close').addEventListener('click', closeProject);
+$$('.modal-nav button').forEach(b => b.addEventListener('click', () => step(+b.dataset.step)));
+
+/* ------------------------------------------------------------------
+   Navigation: track positions + content sections
+------------------------------------------------------------------- */
+$$('[data-goto]').forEach(a => a.addEventListener('click', e => {
+  e.preventDefault();
+  const f = +a.dataset.goto;
+  // smooth = the camera flies there instead of teleporting (also gives the GPU time to raster tiles)
+  scrollTo({ top: track.offsetTop + f * (track.offsetHeight - innerHeight), behavior: reduce ? 'auto' : 'smooth' });
+}));
+$$('.nav a[href^="#"]:not([data-goto])').forEach(a => a.addEventListener('click', e => {
+  e.preventDefault();
+  $(a.getAttribute('href')).scrollIntoView({ behavior: reduce ? 'auto' : 'smooth' });
+}));
+
+/* ------------------------------------------------------------------
+   Grain (paused when the tab is hidden)
+------------------------------------------------------------------- */
+const grain = $('.grain');
+if (!reduce) setInterval(() => {
+  if (document.hidden) return;
+  grain.style.transform = `translate3d(${(Math.random() * 10 - 5).toFixed(1)}%, ${(Math.random() * 10 - 5).toFixed(1)}%, 0)`;
+}, 110);
+
+/* ------------------------------------------------------------------
+   Content sections: HUD theme, labels, reveals, counters
+------------------------------------------------------------------- */
+const content = $('.content');
+const topBand = { rootMargin: '-30px 0px -92% 0px' };   // "what is under the HUD top bar"
+new IntersectionObserver(([e]) => {
+  document.body.classList.toggle('in-content', e.isIntersecting);
+  if (e.isIntersecting) document.body.classList.add('is-light');
+  else if (lightUI === false) document.body.classList.remove('is-light');
+}, topBand).observe(content);
+// Dark panels inside the white content flip the HUD back to light text
+const darkIO = new IntersectionObserver(entries => {
+  for (const e of entries) e.target._under = e.isIntersecting;
+  document.body.classList.toggle('on-dark', [...$$('[data-dark]')].some(el => el._under));
+}, topBand);
+$$('[data-dark]').forEach(el => darkIO.observe(el));
+
+const labelIO = new IntersectionObserver(entries => {
+  for (const e of entries) if (e.isIntersecting) setLabel(e.target.dataset.label);
+}, { rootMargin: '-45% 0px -54% 0px' });
+$$('.sec').forEach(s => labelIO.observe(s));
+
+const splits = [...$$('.split')].map(el => ({ el, words: splitText(el, { words: true }).words }));
+const reveals = [...$$('[data-reveal]')];
+if (!reduce) {
+  splits.forEach(s => s.words.forEach(w => (w.style.opacity = 0)));
+  reveals.forEach(el => (el.style.opacity = 0));
+  const io = new IntersectionObserver(entries => {
+    for (const e of entries) {
+      if (!e.isIntersecting) continue;
+      io.unobserve(e.target);
+      const s = splits.find(x => x.el === e.target);
+      if (s) {
+        waapi.animate(s.words, { opacity: [0, 1], translate: ['0 .45em', '0 0'], delay: stagger(45), duration: 1000, ease: 'out(4)' });
+      } else {
+        waapi.animate(e.target, { opacity: [0, 1], translate: ['0 28px', '0 0'], duration: 1000, ease: 'out(3)' });
+        // children cards stagger in
+        const cards = e.target.querySelectorAll(':scope > .cert, :scope > .stat, :scope > .skill-col, :scope > li');
+        if (cards.length) waapi.animate(cards, { opacity: [0, 1], translate: ['0 24px', '0 0'], delay: stagger(90, { start: 120 }), duration: 900, ease: 'out(4)' });
+        // Portrait: curtain reveal (clip-path, rounded) + settle-in zoom
+        e.target.querySelectorAll('.portrait-img').forEach(pi => {
+          waapi.animate(pi, { clipPath: ['inset(100% 0 0 0 round 28px)', 'inset(0% 0 0 0 round 28px)'], duration: 1200, delay: 150, ease: 'inOut(3)' });
+          waapi.animate(pi.querySelector('img'), { scale: [1.25, 1], duration: 1600, delay: 150, ease: 'out(3)' });
+        });
+        e.target.querySelectorAll('[data-count]').forEach(b => {
+          const o = { v: 0 }, to = +b.dataset.count;
+          animate(o, { v: to, duration: 1400, ease: 'out(3)', onUpdate: () => (b.textContent = Math.round(o.v)) });
+        });
+      }
+    }
+  }, { threshold: .15 });
+  [...splits.map(s => s.el), ...reveals].forEach(el => io.observe(el));
+} else {
+  $$('[data-count]').forEach(b => (b.textContent = b.dataset.count));
+}
+
+/* ------------------------------------------------------------------
+   Intro: loader counter → split exit → camera fly-in
+------------------------------------------------------------------- */
+const loader = $('#loader');
+const hudItems = $$('.hud-item');
+const { chars: heroChars } = splitText('.hero-title', { chars: true });
+const { chars: loaderChars } = splitText('.loader-word', { chars: true });
+
+// Convert posters once fonts are ready (during the loader, so the swap is never visible)
+document.fonts.ready.then(bitmapPosters);
+
+function reveal() {
+  document.body.classList.remove('loading');
+  waapi.animate(hudItems, { opacity: [0, 1], translate: ['0 14px', '0 0'], delay: stagger(60, { start: 500 }), duration: 900, ease: 'out(3)' });
+  waapi.animate(heroChars, {
+    opacity: [0, 1], translate: ['0 60%', '0 0'], rotate: ['8deg', '0deg'],
+    delay: stagger(45, { from: 'center', start: 700 }), duration: 1400, ease: 'out(4)',
+  });
+  waapi.animate('.hero-kicker, .hero-sub', { opacity: [0, 1], translate: ['0 20px', '0 0'], delay: stagger(200, { start: 1300 }), duration: 1000, ease: 'out(3)' });
+  animate(intro, { z: 0, duration: 2600, ease: 'out(4)' });
+  waapi.animate(hint, { translate: ['-50% 0', '-50% 6px'], duration: 900, alternate: true, loop: true, ease: 'inOut(2)', delay: 2500 });
+}
+
+if (reduce || scrollY > 10) {
+  loader.remove();
+  intro.z = 0;
+  document.body.classList.remove('loading');
+} else {
+  hudItems.forEach(el => (el.style.opacity = 0));
+  heroChars.forEach(el => (el.style.opacity = 0));
+  $$('.hero-kicker, .hero-sub').forEach(el => (el.style.opacity = 0));
+  const bar = $('.loader-bar i'), counter = { v: 0 };
+  waapi.animate(loaderChars, { opacity: [0, 1], translate: ['0 8px', '0 0'], delay: stagger(40), duration: 600, ease: 'out(3)' });
+  // Wait for the fonts so the hero never reflows mid-animation
+  const ready = Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 2500))]);
+  animate(counter, {
+    v: 100, duration: 1900, ease: 'inOut(3)',
+    onUpdate: () => { bar.style.transform = `scaleX(${counter.v / 100})`; },
+    onComplete: async () => {
+      await ready;
+      waapi.animate(loaderChars, { opacity: 0, translate: '0 -10px', delay: stagger(25, { from: 'center' }), duration: 500, ease: 'in(2)' });
+      waapi.animate('.loader-bar', { opacity: 0, duration: 400, ease: 'in(2)' });
+      waapi.animate(loader, { opacity: 0, duration: 1000, delay: 450, ease: 'inOut(2)' }).then(() => loader.remove());
+      setTimeout(reveal, 450);
+    },
+  });
+}
+</script>
+</body>
+</html>
