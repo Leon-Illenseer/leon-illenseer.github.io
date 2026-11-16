@@ -354,6 +354,8 @@
 
   /* Project overview (non-3D) */
   .proj-grid { list-style: none; margin: 70px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .proj-lead { margin-top: 34px; }
+  .proj-lead + .proj-grid { margin-top: 48px; }
   .proj-item { display: flex; }
   .proj-card {
     -webkit-appearance: none; appearance: none; font: inherit; color: inherit; text-align: left; cursor: pointer; width: 100%; min-height: 44px; margin: 0;
