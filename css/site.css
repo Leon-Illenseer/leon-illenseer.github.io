@@ -356,12 +356,18 @@
   .proj-grid { list-style: none; margin: 70px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
   .proj-item { display: flex; }
   .proj-card {
-    appearance: none; font: inherit; color: inherit; text-align: left; cursor: pointer; width: 100%; min-height: 44px;
+    -webkit-appearance: none; appearance: none; font: inherit; color: inherit; text-align: left; cursor: pointer; width: 100%; min-height: 44px; margin: 0;
     background: #fff; border: 1px solid var(--line); border-radius: var(--r-md); padding: 14px 14px 22px;
-    display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+    display: block; -webkit-tap-highlight-color: rgba(109,40,217,.12);
     transition: transform .5s var(--ease), box-shadow .5s var(--ease), border-color .5s var(--ease);
   }
-  .proj-card:hover { transform: translateY(-6px); box-shadow: 0 24px 50px -24px rgba(76,29,149,.35); border-color: #d9ccff; }
+  /* The column layout sits on an inner span, not on the <button>: Safari does not reliably lay out a button as a flex container */
+  .proj-in { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; height: 100%; }
+  /* hover only where a real pointer exists: on touch screens :hover sticks after a tap and the card would stay lifted */
+  @media (hover: hover) {
+    .proj-card:hover { transform: translateY(-6px); box-shadow: 0 24px 50px -24px rgba(76,29,149,.35); border-color: #d9ccff; }
+    .proj-card:hover .proj-arrow { transform: translateX(5px); }
+  }
   .proj-art { display: block; width: 100%; background: #f6f4ee; border: 5px solid #121212; border-radius: var(--r-sm); padding: 8px; margin-bottom: 8px; }
   .proj-art .poster { display: block; width: 100%; height: auto; aspect-ratio: 336 / 266; border-radius: 2px; }
   .proj-meta { display: flex; align-items: center; gap: 12px; padding: 0 8px; font-family: var(--mono); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
@@ -372,7 +378,7 @@
   .proj-sum { padding: 0 8px; font-size: 16px; line-height: 1.55; color: #3f3f3a; }
   .proj-more { margin: auto 8px 0; padding-top: 10px; min-height: 44px; display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--violet); font-weight: 500; }
   .proj-arrow { display: inline-block; transition: transform .4s var(--ease); }
-  .proj-card:hover .proj-arrow, .proj-card:focus-visible .proj-arrow { transform: translateX(5px); }
+  .proj-card:focus-visible .proj-arrow { transform: translateX(5px); }
 
   .quote-mark { font-size: 120px; line-height: .6; color: var(--violet); font-weight: 700; height: 60px; }
   .quote { margin-top: 10px; font-size: clamp(28px, 3.6vw, 52px); line-height: 1.18; letter-spacing: -.03em; font-weight: 500; max-width: 24ch; }

@@ -22,14 +22,14 @@ const projGrid = $('.proj-grid');
 if (projGrid) {
   projGrid.innerHTML = projects.map((p, i) => {
     const n = String(i + 1).padStart(2, '0');
-    return `<li class="proj-item"><button type="button" class="proj-card" data-i="${i}" aria-label="Projekt ${n}: ${p.title} - Details öffnen">
+    return `<li class="proj-item"><button type="button" class="proj-card" data-i="${i}" aria-label="Projekt ${n}: ${p.title} - Details öffnen"><span class="proj-in">
       <span class="proj-art">${banners[i]}</span>
       <span class="proj-meta"><span class="proj-num">${n}</span><span class="proj-cat">${p.cat}</span></span>
       <span class="proj-title">${p.title}</span>
       <span class="proj-tag">${p.tag}</span>
       <span class="proj-sum">${p.summary}</span>
       <span class="proj-more" aria-hidden="true">Details <span class="proj-arrow">→</span></span>
-    </button></li>`;
+    </span></button></li>`;
   }).join('');
   projGrid.addEventListener('click', e => {
     const b = e.target.closest('.proj-card');
