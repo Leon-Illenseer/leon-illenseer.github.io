@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Leon Illenseer - Full-Stack-Entwickler · Shopware 6</title>
 <meta name="description" content="Portfolio von Leon Illenseer - Full-Stack-Entwickler mit Schwerpunkt Shopware 6: Shop-Weiterentwicklung und individuelle Erweiterungen.">
+<meta name="theme-color" content="#050505">
+<!-- Without JavaScript: no loader, the content sections stay readable -->
+<noscript><style>#loader { display: none; } body.loading { overflow: auto; } .track { display: none; } .hud-bottom, .progress, .scroll-hint { display: none; }</style></noscript>
 <!-- Everything is self-hosted (vendor/): no request leaves this site — no Google Fonts, no CDN (DSGVO) -->
 <link rel="modulepreload" href="vendor/anime.esm.min.js">
 <link rel="preload" href="vendor/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
@@ -57,6 +60,9 @@
   @media (hover: hover) and (pointer: fine) { body.has-cursor, body.has-cursor a, body.has-cursor button { cursor: none; } }
   a { color: inherit; }
   :focus-visible { outline: 3px solid var(--violet-ui); outline-offset: 4px; }
+  /* keyboard users can jump past the 3D tour straight to the text content */
+  .skip { position: fixed; left: 16px; top: 16px; z-index: 100; padding: 12px 18px; border-radius: var(--pill); background: #fff; color: var(--ink); font-family: var(--mono); font-size: 14px; text-decoration: none; transform: translateY(-200%); }
+  .skip:focus { transform: none; }
 
   /* ---------- Loader ---------- */
   #loader { position: fixed; inset: 0; z-index: 80; background: #000; display: grid; place-items: center; font-family: var(--mono); }
@@ -111,6 +117,11 @@
   .hero-kicker { font-size: 26px; font-weight: 500; letter-spacing: .18em; margin-bottom: 26px; color: var(--violet-hi); }
   .hero-title { font-size: 104px; line-height: .9; font-weight: 700; letter-spacing: -.045em; color: #fff; }
   .hero-sub { margin-top: 28px; font-size: 19px; letter-spacing: .06em; color: #d6d6d0; }
+  /* Phones: name on two lines in a narrower panel, so it never gets wider than the screen */
+  .hero-narrow .hl { display: block; }
+  .hero-narrow .hero-title { font-size: 96px; }
+  .hero-narrow .hero-kicker { font-size: 22px; margin-bottom: 22px; }
+  .hero-narrow .hero-sub { font-size: 19px; line-height: 1.5; max-width: 440px; margin-top: 24px; }
 
   /* Portal rings: soft radial glow, no hard edges; the light disc at the end is the "bright room" */
   /* Galaxy vortex: translucent discs with spiral-arm texture (generated once on a canvas), swirling against each other */
@@ -140,8 +151,10 @@
   .glow { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(circle at 50% 50%, rgba(240,236,255,.7), rgba(240,236,255,.12) 25%, transparent 55%); }
   .vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,.72)); }
   .whiteout { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+  /* the oversized grain sits in a clipped box: a fixed element larger than the screen can widen the page on phones */
+  .grain-wrap { position: fixed; inset: 0; z-index: 40; overflow: hidden; pointer-events: none; }
   .grain {
-    position: fixed; inset: -50%; z-index: 40; pointer-events: none; opacity: .05; will-change: transform;
+    position: absolute; inset: -50%; opacity: .05; will-change: transform;
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
   }
 
@@ -164,10 +177,13 @@
   .section-label span { display: inline-block; }
   .progress { position: absolute; left: 28px; right: 28px; bottom: 56px; height: 2px; border-radius: 2px; background: color-mix(in srgb, var(--hud) 22%, transparent); overflow: hidden; }
   .progress i { display: block; height: 100%; background: var(--hud-accent); transform-origin: 0 50%; transform: scaleX(0); }
-  .scroll-hint { position: absolute; left: 50%; bottom: 80px; translate: -50% 0; }
+  .scroll-hint { position: absolute; left: 50%; bottom: 80px; translate: -50% 0; white-space: nowrap; }
+  .scroll-hint span { display: inline-block; }
   .hud-shade { position: fixed; inset: 0; z-index: 29; pointer-events: none; transition: opacity .4s; background: linear-gradient(rgba(0,0,0,.5), transparent 110px, transparent calc(100% - 130px), rgba(0,0,0,.5)); }
   body.is-light .hud-shade { opacity: 0; }
-  body.in-content .progress, body.in-content .scroll-hint, body.in-content .hud-bottom { visibility: hidden; }
+  /* content-low = the white content has reached the bottom edge: hide the gallery read-outs before they overlap it */
+  body.content-low .progress, body.content-low .scroll-hint, body.content-low .hud-bottom { visibility: hidden; }
+  .menu-btn { display: none; pointer-events: auto; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; background: transparent; border: 1.5px solid currentColor; border-radius: var(--pill); padding: 10px 16px; min-height: 44px; }
   /* In the content area the top bar gets its own surface so headings never run under the nav */
   /* display:none over the 3D scene: a backdrop-filter (even at opacity 0) would force the whole scene into an extra render surface */
   .hud-bar { position: fixed; inset: 0 0 auto; height: 72px; z-index: 29; pointer-events: none; display: none;
@@ -213,7 +229,7 @@
   .modal-backdrop { position: absolute; inset: 0; background: rgba(5,5,5,.6); }
   .modal-panel {
     position: absolute; top: 0; right: 0; bottom: 0; width: min(580px, 100%); background: #f7f6f3; color: var(--ink);
-    padding: 30px 40px 36px; overflow-y: auto; display: flex; flex-direction: column; gap: 26px; border-radius: var(--r-lg) 0 0 var(--r-lg);
+    padding: 30px 40px 36px; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 26px; border-radius: var(--r-lg) 0 0 var(--r-lg);
   }
   .modal-top { display: flex; justify-content: space-between; align-items: center; font-family: var(--mono); font-size: 14px; letter-spacing: .1em; color: var(--muted); }
   .modal-art { position: relative; border-radius: var(--r-md); overflow: hidden; background: #f6f4ee; border: 10px solid #121212; padding: 18px; flex-shrink: 0; }
@@ -240,7 +256,7 @@
   /* ---------- Content sections ---------- */
   .content { position: relative; z-index: 1; background: #fff; color: var(--ink); }
   .wrap { max-width: 1280px; margin: 0 auto; padding: 0 28px; }
-  .sec { padding: 140px 0 120px; border-top: 1px solid var(--line); content-visibility: auto; contain-intrinsic-size: auto 900px; }
+  .sec { padding: 140px 0 120px; border-top: 1px solid var(--line); }
   .sec:first-child { border-top: 0; padding-top: 18vh; }
   .kicker { font-family: var(--mono); font-size: 14px; letter-spacing: .22em; color: var(--muted); margin-bottom: 30px; display: flex; gap: 14px; align-items: center; font-weight: 500; }
   .kicker::before { content: ""; width: 10px; height: 10px; background: var(--violet); border-radius: 50%; }
@@ -373,8 +389,16 @@
     .skills { grid-template-columns: 1fr; }
   }
   @media (max-width: 640px) {
-    .nav { display: none; }
+    /* phone navigation: a menu button opens the links as a dropdown card */
+    .menu-btn { display: inline-flex; align-items: center; }
+    .nav { display: none; position: absolute; top: 54px; right: 0; flex-direction: column; gap: 2px; min-width: 210px; padding: 10px;
+      background: var(--ink); color: var(--fg); text-shadow: none; border: 1px solid rgba(255,255,255,.14); border-radius: var(--r-md); box-shadow: 0 24px 50px -20px rgba(0,0,0,.6); }
+    body.menu-open .nav { display: flex; }
+    .nav a { padding: 14px 16px; font-size: 14px; opacity: 1 !important; translate: none !important; }   /* not part of the intro stagger: the card is closed then */
+    .hud-top { top: 14px; }
     .hud-top, .hud-bottom { left: 16px; right: 16px; }
+    .mail { font-size: clamp(22px, 7.4vw, 28px); overflow-wrap: anywhere; }
+    .legal-link { display: inline-block; padding: 10px 0; }
     .progress { left: 16px; right: 16px; }
     .wrap { padding: 0 16px; }
     .certs { grid-template-columns: 1fr; }
@@ -385,11 +409,11 @@
     .ai-block, .ai-callout { grid-template-columns: 1fr; }
     .ai-callout { padding: 28px 22px; }
     .modal-title { font-size: 36px; }
-    body.in-content .hud-bottom { visibility: hidden; }
   }
 </style>
 </head>
 <body class="loading">
+<a class="skip" href="#profil">Zum Inhalt springen</a>
 
 <div id="loader" aria-hidden="true">
   <div class="loader-inner">
@@ -398,7 +422,7 @@
   </div>
 </div>
 
-<div class="grain" aria-hidden="true"></div>
+<div class="grain-wrap" aria-hidden="true"><div class="grain"></div></div>
 <div class="cursor" aria-hidden="true">
   <div class="c-pos c-ring-pos"><div class="cursor-ring"></div><div class="cursor-label">Ansehen</div></div>
   <div class="c-pos c-dot-pos"><div class="cursor-dot"></div></div>
@@ -409,7 +433,8 @@
 <header class="hud">
   <div class="hud-top">
     <a class="logo hud-item" href="#" data-goto="0">Leon Illenseer<span>.</span></a>
-    <nav class="nav" aria-label="Hauptnavigation">
+    <button class="menu-btn hud-item" type="button" aria-expanded="false" aria-controls="hauptnav">Menü</button>
+    <nav class="nav" id="hauptnav" aria-label="Hauptnavigation">
       <a class="hud-item" href="#" data-goto="0.2">Arbeiten</a>
       <a class="hud-item" href="#" data-goto="0.62">Stack</a>
       <a class="hud-item" href="#profil">Profil</a>
@@ -417,7 +442,8 @@
       <a class="hud-item" href="#kontakt">Kontakt</a>
     </nav>
   </div>
-  <div class="scroll-hint hud-item">Scroll ↓ Eintreten</div>
+  <!-- the intro fades the inner span; the outer element's opacity belongs to the scroll position alone -->
+  <div class="scroll-hint"><span class="hud-item">Scroll ↓ Eintreten</span></div>
   <div class="progress hud-item"><i></i></div>
   <div class="hud-bottom">
     <div class="section-label hud-item"><span>01 - Arbeiten</span></div>
@@ -820,21 +846,28 @@ function plane(o) {
   world.appendChild(el);
   // near: how close (in dist units) a surface may come before it is culled. Centred, screen-filling vortex discs
   // must go early: if they re-appear right in front of the eye (scrolling back), Chrome rasterises them gigantic.
-  if (fog) fogEls.push({ el, z, o: -1, v: true, near: cls === 'vortex' ? -380 : -700, fadeNear: cls === 'vortex' });
+  // Phones: the exhibits hang close to the centre line, so they dissolve just before they reach the eye. A surface that
+  // close would otherwise be rasterised larger than a phone GPU allows (it then pops out of view on its own).
+  // fade = length of the dissolve in front of `near` (0 = hard cut, which only ever happens off screen).
+  if (fog) fogEls.push({ el, z, o: -1, v: true, near: cls === 'vortex' ? -380 : narrow ? -250 : -700, fade: cls === 'vortex' ? 380 : narrow ? 220 : 0 });
   return el;
 }
 
 // No walls any more: the exhibits float in open space (starfield canvas behind the 3D world)
-const W = narrow ? 720 : 1100, G_END = -2600;
-const EX_ANGLE = 72;   // exhibits turned slightly towards the flight path → easier to read while floating past
+// Phones: exhibits smaller, closer to the flight path and turned further towards the viewer, so a whole poster fits a portrait screen
+const W = narrow ? 460 : 1100, G_END = -2600;
+const EX_ANGLE = narrow ? 58 : 72;   // exhibits turned slightly towards the flight path → easier to read while floating past
+const EX_SCALE = narrow ? .72 : 1;
 
-const frameZ = [-150, -750, -1350, -1950];
+// Phones: the exhibits hang close to the centre line. They must all start BEHIND the title panel (z -520), otherwise the
+// first one slides in front of the name and hides some of its letters.
+const frameZ = narrow ? [-680, -1140, -1600, -2060] : [-150, -750, -1350, -1950];
 projects.forEach((p, i) => {
   const left = i % 2 === 0;
-  const z = frameZ[Math.floor(i / 2)] - (left ? 0 : 300);
+  const z = frameZ[Math.floor(i / 2)] - (left ? 0 : narrow ? 230 : 300);
   const n = String(i + 1).padStart(2, '0');
   const fr = plane({
-    w: 480, h: 540, x: left ? -W / 2 + 4 : W / 2 - 4, y: -36, z, ry: left ? EX_ANGLE : -EX_ANGLE, cls: 'frame',
+    w: 480, h: 540, x: left ? -W / 2 + 4 : W / 2 - 4, y: -36, z, ry: left ? EX_ANGLE : -EX_ANGLE, s: EX_SCALE, cls: 'frame',
     html: `<div class="lamp"></div>
            <div class="fbox"><div class="mat">${banners[i]}</div></div>
            <div class="plaque"><small>${p.cat}</small><strong>${p.title}</strong><span>${p.tag} · Details ↗</span></div>
@@ -881,9 +914,9 @@ async function bitmapPosters() {
 
 const HERO_Z = -520;
 const hero = plane({
-  w: 940, h: 400, y: -40, z: HERO_Z, s: narrow ? .55 : 1, cls: 'hero', fog: false,
+  w: narrow ? 520 : 940, h: narrow ? 480 : 400, y: -40, z: HERO_Z, s: narrow ? 1.3 : 1, cls: narrow ? 'hero hero-narrow' : 'hero', fog: false,
   html: `<div class="hero-kicker">PORTFOLIO</div>
-         <h1 class="hero-title">LEON ILLENSEER</h1>
+         <h1 class="hero-title"><span class="hl">LEON</span> <span class="hl">ILLENSEER</span></h1>
          <div class="hero-sub">Full-Stack-Entwickler · Shopware 6 · E-Commerce</div>`,
 });
 
@@ -931,7 +964,9 @@ world.prepend(plane({ w: 1500, h: 1500, z: T_END, cls: 'light', fog: false }));
 
 // Stack labels: counter-rotated every frame against the tunnel spin so the text always stays horizontal
 const holos = stackHolos.map(([k, v], i) => {
-  const z = -3000 - i * 480, geo = { z, s: .5 };
+  // phones: sized so the longest label is still inside the screen when it fades out, and started a little later so the
+  // first label does not appear while the last exhibits (which pass close to the centre there) are still in view
+  const z = narrow ? -3300 - i * 450 : -3000 - i * 480, geo = { z, s: narrow ? .7 : .5 };
   const logo = v.startsWith('SHOPWARE') ? `<span class="sw-chip"><svg viewBox="0 0 68.8 68.8" aria-hidden="true"><path d="${SW_PATH}" fill="#0069FC"/></svg></span>` : '';
   const el = plane({ w: 900, h: 260, ...geo, cls: 'holo', fog: false, html: `<small>${k}</small><strong>${logo}${v}</strong>` });
   return { el, z, geo, o: -1, rz: NaN };
@@ -1005,6 +1040,7 @@ animate(camTarget, {
 
 const mouse = { x: 0, y: 0, sx: 0, sy: 0, px: -1, py: -1, moved: false };
 addEventListener('pointermove', e => {
+  if (e.pointerType !== 'mouse') return;   // a finger must not tilt the camera: the view would stay skewed after every touch
   mouse.x = (e.clientX / innerWidth) * 2 - 1;
   mouse.y = (e.clientY / innerHeight) * 2 - 1;
   mouse.px = e.clientX; mouse.py = e.clientY; mouse.moved = true;
@@ -1054,11 +1090,13 @@ function render(now) {
       if (vis !== f.v) { f.v = vis; f.el.style.display = vis ? '' : 'none'; }
       if (!vis) continue;
       let o = 1 - clamp((dist - 350) / 2300) * .94;
-      if (f.fadeNear) o *= clamp((dist - f.near) / 380);   // vortex discs dissolve as you fly through them
+      if (f.fade) o *= clamp((dist - f.near) / f.fade);   // vortex discs (and exhibits on phones) dissolve as you fly through them
       o = Math.round(o * 100) / 100;
       if (o !== f.o) { f.o = o; f.el.style.opacity = o; }
     }
-    const ho = Math.round(clamp((-(HERO_Z + z) - 120) / 380) * 100) / 100;
+    // phones: the title must be gone before it grows wider than the screen (letters would be cut off at the edges)
+    const hd = -(HERO_Z + z);
+    const ho = Math.round(clamp(narrow ? (hd - 350) / 110 : (hd - 120) / 380) * 100) / 100;
     if (ho !== last.h) { last.h = ho; hero.style.opacity = ho; hero.style.visibility = ho ? '' : 'hidden'; }
     // vortex discs: each twists at its own speed/direction → swirling depth (only the visible ones are written)
     for (const v of vortices) {
@@ -1268,6 +1306,16 @@ new IntersectionObserver(([e]) => {
   if (e.isIntersecting) document.body.classList.add('is-light');
   else if (lightUI === false) document.body.classList.remove('is-light');
 }, topBand).observe(content);
+new IntersectionObserver(([e]) => document.body.classList.toggle('content-low', e.isIntersecting), { rootMargin: '-86% 0px 0px 0px' }).observe(content);
+
+/* Phone menu: button toggles the dropdown; closes on link tap, outside tap and Escape */
+const menuBtn = $('.menu-btn');
+const setMenu = open => { document.body.classList.toggle('menu-open', open); menuBtn.setAttribute('aria-expanded', open); };
+menuBtn.addEventListener('click', () => setMenu(!document.body.classList.contains('menu-open')));
+$$('.nav a').forEach(a => a.addEventListener('click', () => setMenu(false)));
+addEventListener('pointerdown', e => { if (!e.target.closest('.nav, .menu-btn')) setMenu(false); });
+addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('menu-open')) { setMenu(false); menuBtn.focus(); } });
+
 // Dark panels inside the white content flip the HUD back to light text
 const darkIO = new IntersectionObserver(entries => {
   for (const e of entries) e.target._under = e.isIntersecting;
@@ -1285,11 +1333,24 @@ const reveals = [...$$('[data-reveal]')];
 if (!reduce) {
   splits.forEach(s => s.words.forEach(w => (w.style.opacity = 0)));
   reveals.forEach(el => (el.style.opacity = 0));
+  const pending = new Set([...splits.map(s => s.el), ...reveals]);
+  // Skipped by a jump or a fast fling (now above the screen, never seen by the observer): show it without animation,
+  // so nothing can stay invisible when the visitor scrolls back up.
+  const showSkipped = () => {
+    for (const el of pending) {
+      if (el.getBoundingClientRect().bottom >= 0) continue;
+      pending.delete(el); io.unobserve(el);
+      const s = splits.find(x => x.el === el);
+      if (s) s.words.forEach(w => (w.style.opacity = 1)); else el.style.opacity = 1;
+    }
+  };
+  let skipTimer = 0;
+  addEventListener('scroll', () => { if (pending.size && !skipTimer) skipTimer = setTimeout(() => { skipTimer = 0; showSkipped(); }, 200); }, { passive: true });
   const io = new IntersectionObserver(entries => {
     for (const e of entries) {
-      if (!e.isIntersecting) continue;
-      io.unobserve(e.target);
       const s = splits.find(x => x.el === e.target);
+      if (!e.isIntersecting) continue;
+      io.unobserve(e.target); pending.delete(e.target);
       if (s) {
         waapi.animate(s.words, { opacity: [0, 1], translate: ['0 .45em', '0 0'], delay: stagger(45), duration: 1000, ease: 'out(4)' });
       } else {
@@ -1308,8 +1369,10 @@ if (!reduce) {
         });
       }
     }
-  }, { threshold: .15 });
-  [...splits.map(s => s.el), ...reveals].forEach(el => io.observe(el));
+  // No ratio threshold: a block several screens tall (long lists on a phone) would never reach it and stay invisible
+  }, { rootMargin: '0px 0px -10% 0px' });
+  pending.forEach(el => io.observe(el));
+  showSkipped();   // page reloaded with a restored scroll position further down
 } else {
   $$('[data-count]').forEach(b => (b.textContent = b.dataset.count));
 }
