@@ -25,8 +25,10 @@ a { color: var(--violet); text-underline-offset: 3px; }
   transition: color .45s var(--ease);
 }
 .back::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--ink); transform: translateY(101%); transition: transform .55s var(--ease); }
-.back:hover::before, .back:focus-visible::before { transform: none; }
-.back:hover, .back:focus-visible { color: #fff; }
+.back:focus-visible::before { transform: none; }
+.back:focus-visible { color: #fff; }
+/* hover only with a real pointer: on touch screens :hover sticks after a tap */
+@media (hover: hover) { .back:hover::before { transform: none; } .back:hover { color: #fff; } }
 
 main { max-width: 820px; margin: 0 auto; padding: 72px 24px 110px; }
 .kicker { font-family: var(--mono); font-size: 14px; font-weight: 500; letter-spacing: .2em; color: var(--muted); margin-bottom: 22px; display: flex; align-items: center; gap: 12px; }
