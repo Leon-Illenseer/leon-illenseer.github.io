@@ -686,6 +686,32 @@ const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
 const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
 const smooth = t => t * t * (3 - 2 * t);
+
+/* Entrance / exit animations — native Web Animations, written so the END state never depends on the animation:
+   enter() first puts the element into its resting style and only plays the way there (fill: backwards), so when the
+   animation is over (or is dropped) the element is simply visible. On iPhones, committing a staggered animation's
+   final style left single letters and cards at opacity 0 — "shown briefly, then gone". */
+const EASE = {
+  out2: 'cubic-bezier(.25,.46,.45,.94)', out3: 'cubic-bezier(.215,.61,.355,1)', out4: 'cubic-bezier(.165,.84,.44,1)',
+  in2: 'cubic-bezier(.55,.085,.68,.53)', inOut2: 'cubic-bezier(.455,.03,.515,.955)', inOut3: 'cubic-bezier(.645,.045,.355,1)',
+};
+const els = t => (typeof t === 'string' ? [...document.querySelectorAll(t)] : t instanceof Element ? [t] : [...t]);
+const stag = (step, start = 0) => i => start + i * step;
+const stagCenter = (step, start = 0) => (i, n) => start + Math.abs(i - (n - 1) / 2) * step;
+const noMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function enter(targets, from, to, { duration = 800, delay = 0, ease = EASE.out3 } = {}) {
+  const list = els(targets);
+  list.forEach((el, i) => {
+    el.style.opacity = '';   // resting style = visible
+    el.animate([from, to], { duration: noMotion ? 1 : duration, delay: noMotion ? 0 : typeof delay === 'function' ? delay(i, list.length) : delay, easing: ease, fill: 'backwards' });
+  });
+}
+// exit: plays to `to`, then writes `to` as plain inline style itself (no commitStyles) and drops the animation
+function leave(targets, to, { duration = 500, delay = 0, ease = EASE.inOut2 } = {}) {
+  const list = els(targets);
+  const anims = list.map((el, i) => el.animate([to], { duration: noMotion ? 1 : duration, delay: noMotion ? 0 : typeof delay === 'function' ? delay(i, list.length) : delay, easing: ease, fill: 'forwards' }));
+  return Promise.all(anims.map(a => a.finished)).then(() => { list.forEach(el => Object.assign(el.style, to)); anims.forEach(a => a.cancel()); }).catch(() => {});
+}
 // Phones: wider field of view + narrower room so walls and artworks stay on screen
 const narrowMQ = matchMedia('(max-width: 699px)');
 const narrow = narrowMQ.matches;
@@ -1053,7 +1079,7 @@ function setLabel(text) {
   if (text === currentLabel) return;
   currentLabel = text;
   labelEl.textContent = text;
-  waapi.animate(labelEl, { translate: ['0 100%', '0 0'], opacity: [0, 1], duration: 600, ease: 'out(4)' });
+  enter(labelEl, { translate: '0 100%', opacity: 0 }, { translate: '0 0', opacity: 1 }, { duration: 600, ease: EASE.out4 });
 }
 
 // Only write a style when the value really changed - avoids needless style recalcs
@@ -1213,9 +1239,8 @@ function fillModal(i, dir = 1) {
   $('.modal-summary').textContent = p.summary;
   $('.modal-points').innerHTML = p.points.map(t => `<li>${t}</li>`).join('');
   $('.m-tags').innerHTML = p.stack.map(t => `<span class="tag now">${t}</span>`).join('');
-  waapi.animate(panel.querySelectorAll('.modal-art, .modal-cat, .modal-title, .modal-summary, .modal-points li, .m-tags .tag'), {
-    opacity: [0, 1], translate: [`${dir * 18}px 0`, '0 0'], delay: stagger(28), duration: 650, ease: 'out(4)',
-  });
+  enter(panel.querySelectorAll('.modal-art, .modal-cat, .modal-title, .modal-summary, .modal-points li, .m-tags .tag'),
+    { opacity: 0, translate: `${dir * 18}px 0` }, { opacity: 1, translate: '0 0' }, { delay: stag(28), duration: 650, ease: EASE.out4 });
 }
 function step(d) {
   openIndex = (openIndex + d + projects.length) % projects.length;
@@ -1227,15 +1252,17 @@ function openProject(i) {
   modal.hidden = false;
   document.body.classList.add('modal-open');
   fillModal(i);
-  waapi.animate(backdrop, { opacity: [0, 1], duration: 450, ease: 'out(2)' });
-  waapi.animate(panel, { translate: ['100% 0', '0 0'], duration: reduce ? 1 : 750, ease: 'out(4)' });
+  panel.style.translate = '';
+  enter(backdrop, { opacity: 0 }, { opacity: 1 }, { duration: 450, ease: EASE.out2 });
+  enter(panel, { translate: '100% 0' }, { translate: '0 0' }, { duration: 750, ease: EASE.out4 });
   $('.modal-close').focus({ preventScroll: true });
 }
 function closeProject() {
   if (modal.hidden) return;
-  waapi.animate(backdrop, { opacity: 0, duration: 400, ease: 'out(2)' });
-  waapi.animate(panel, { translate: '100% 0', duration: reduce ? 1 : 550, ease: 'inOut(3)' }).then(() => {
+  leave(backdrop, { opacity: '0' }, { duration: 400, ease: EASE.out2 });
+  leave(panel, { translate: '100% 0' }, { duration: 550, ease: EASE.inOut3 }).then(() => {
     modal.hidden = true;
+    panel.style.translate = ''; backdrop.style.opacity = '';
     document.body.classList.remove('modal-open');
     lastFocus?.focus?.({ preventScroll: true });
   });
@@ -1341,7 +1368,7 @@ if (!reduce) {
       if (el.getBoundingClientRect().bottom >= 0) continue;
       pending.delete(el); io.unobserve(el);
       const s = splits.find(x => x.el === el);
-      if (s) s.words.forEach(w => (w.style.opacity = 1)); else el.style.opacity = 1;
+      if (s) s.words.forEach(w => (w.style.opacity = '')); else el.style.opacity = '';
     }
   };
   let skipTimer = 0;
@@ -1352,16 +1379,16 @@ if (!reduce) {
       if (!e.isIntersecting) continue;
       io.unobserve(e.target); pending.delete(e.target);
       if (s) {
-        waapi.animate(s.words, { opacity: [0, 1], translate: ['0 .45em', '0 0'], delay: stagger(45), duration: 1000, ease: 'out(4)' });
+        enter(s.words, { opacity: 0, translate: '0 .45em' }, { opacity: 1, translate: '0 0' }, { delay: stag(45), duration: 1000, ease: EASE.out4 });
       } else {
-        waapi.animate(e.target, { opacity: [0, 1], translate: ['0 28px', '0 0'], duration: 1000, ease: 'out(3)' });
+        enter(e.target, { opacity: 0, translate: '0 28px' }, { opacity: 1, translate: '0 0' }, { duration: 1000 });
         // children cards stagger in
         const cards = e.target.querySelectorAll(':scope > .cert, :scope > .stat, :scope > .skill-col, :scope > li');
-        if (cards.length) waapi.animate(cards, { opacity: [0, 1], translate: ['0 24px', '0 0'], delay: stagger(90, { start: 120 }), duration: 900, ease: 'out(4)' });
+        if (cards.length) enter(cards, { opacity: 0, translate: '0 24px' }, { opacity: 1, translate: '0 0' }, { delay: stag(90, 120), duration: 900, ease: EASE.out4 });
         // Portrait: curtain reveal (clip-path, rounded) + settle-in zoom
         e.target.querySelectorAll('.portrait-img').forEach(pi => {
-          waapi.animate(pi, { clipPath: ['inset(100% 0 0 0 round 28px)', 'inset(0% 0 0 0 round 28px)'], duration: 1200, delay: 150, ease: 'inOut(3)' });
-          waapi.animate(pi.querySelector('img'), { scale: [1.25, 1], duration: 1600, delay: 150, ease: 'out(3)' });
+          enter(pi, { clipPath: 'inset(100% 0 0 0 round 28px)' }, { clipPath: 'inset(0% 0 0 0 round 28px)' }, { duration: 1200, delay: 150, ease: EASE.inOut3 });
+          enter(pi.querySelector('img'), { scale: 1.25 }, { scale: 1 }, { duration: 1600, delay: 150 });
         });
         e.target.querySelectorAll('[data-count]').forEach(b => {
           const o = { v: 0 }, to = +b.dataset.count;
@@ -1390,14 +1417,12 @@ document.fonts.ready.then(bitmapPosters);
 
 function reveal() {
   document.body.classList.remove('loading');
-  waapi.animate(hudItems, { opacity: [0, 1], translate: ['0 14px', '0 0'], delay: stagger(60, { start: 500 }), duration: 900, ease: 'out(3)' });
-  waapi.animate(heroChars, {
-    opacity: [0, 1], translate: ['0 60%', '0 0'], rotate: ['8deg', '0deg'],
-    delay: stagger(45, { from: 'center', start: 700 }), duration: 1400, ease: 'out(4)',
-  });
-  waapi.animate('.hero-kicker, .hero-sub', { opacity: [0, 1], translate: ['0 20px', '0 0'], delay: stagger(200, { start: 1300 }), duration: 1000, ease: 'out(3)' });
+  enter(hudItems, { opacity: 0, translate: '0 14px' }, { opacity: 1, translate: '0 0' }, { delay: stag(60, 500), duration: 900 });
+  enter(heroChars, { opacity: 0, translate: '0 60%', rotate: '8deg' }, { opacity: 1, translate: '0 0', rotate: '0deg' },
+    { delay: stagCenter(45, 700), duration: 1400, ease: EASE.out4 });
+  enter('.hero-kicker, .hero-sub', { opacity: 0, translate: '0 20px' }, { opacity: 1, translate: '0 0' }, { delay: stag(200, 1300), duration: 1000 });
   animate(intro, { z: 0, duration: 2600, ease: 'out(4)' });
-  waapi.animate(hint, { translate: ['-50% 0', '-50% 6px'], duration: 900, alternate: true, loop: true, ease: 'inOut(2)', delay: 2500 });
+  if (!reduce) hint.animate([{ translate: '-50% 0' }, { translate: '-50% 6px' }], { duration: 900, delay: 2500, direction: 'alternate', iterations: Infinity, easing: EASE.inOut2 });
 }
 
 if (reduce || scrollY > 10) {
@@ -1409,7 +1434,7 @@ if (reduce || scrollY > 10) {
   heroChars.forEach(el => (el.style.opacity = 0));
   $$('.hero-kicker, .hero-sub').forEach(el => (el.style.opacity = 0));
   const bar = $('.loader-bar i'), counter = { v: 0 };
-  waapi.animate(loaderChars, { opacity: [0, 1], translate: ['0 8px', '0 0'], delay: stagger(40), duration: 600, ease: 'out(3)' });
+  enter(loaderChars, { opacity: 0, translate: '0 8px' }, { opacity: 1, translate: '0 0' }, { delay: stag(40), duration: 600 });
   // Wait for the fonts so the hero never reflows mid-animation
   const ready = Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 2500))]);
   animate(counter, {
@@ -1417,9 +1442,9 @@ if (reduce || scrollY > 10) {
     onUpdate: () => { bar.style.transform = `scaleX(${counter.v / 100})`; },
     onComplete: async () => {
       await ready;
-      waapi.animate(loaderChars, { opacity: 0, translate: '0 -10px', delay: stagger(25, { from: 'center' }), duration: 500, ease: 'in(2)' });
-      waapi.animate('.loader-bar', { opacity: 0, duration: 400, ease: 'in(2)' });
-      waapi.animate(loader, { opacity: 0, duration: 1000, delay: 450, ease: 'inOut(2)' }).then(() => loader.remove());
+      leave(loaderChars, { opacity: '0', translate: '0 -10px' }, { delay: stagCenter(25), duration: 500, ease: EASE.in2 });
+      leave('.loader-bar', { opacity: '0' }, { duration: 400, ease: EASE.in2 });
+      leave(loader, { opacity: '0' }, { duration: 1000, delay: 450 }).then(() => loader.remove());
       setTimeout(reveal, 450);
     },
   });
