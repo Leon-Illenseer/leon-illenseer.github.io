@@ -1,6 +1,6 @@
-import { animate, waapi, stagger, splitText, onScroll, createAnimatable } from '../vendor/anime.esm.min.js';
-import { EASE, stag, stagCenter, enter, leave } from './anim.js';
-import { projects, SW_PATH, banners, stackHolos } from './data.js';
+import { animate, waapi, splitText, onScroll, createAnimatable } from '../vendor/anime.esm.min.js';
+import { EASE, stag, stagCenter, enter, leave } from './anim.js?v=9cbaf4c9';
+import { projects, SW_PATH, banners, stackHolos } from './data.js?v=3b960ce6';
 
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const finePointer = matchMedia('(hover: hover) and (pointer: fine)').matches;
@@ -34,6 +34,29 @@ if (projGrid) {
   projGrid.addEventListener('click', e => {
     const b = e.target.closest('.proj-card');
     if (b) openProject(+b.dataset.i);
+  });
+}
+
+/* Phones: only the first PROJ_SHOWN cards are visible (CSS), the button opens the rest.
+   Collapsing keeps the button under the finger instead of leaving the visitor far down the page. */
+const PROJ_SHOWN = 4;
+const projToggle = $('.proj-toggle');
+if (projToggle && projects.length <= PROJ_SHOWN) projToggle.parentElement.remove();   // nothing to unfold
+else if (projGrid && projToggle) {
+  const label = open => (open ? 'Weniger anzeigen' : `Alle ${projects.length} Projekte anzeigen`);
+  projToggle.textContent = label(false);
+  projToggle.addEventListener('click', () => {
+    const open = !projGrid.classList.contains('is-open');
+    const before = projToggle.getBoundingClientRect().top;
+    projGrid.classList.toggle('is-open', open);
+    projToggle.setAttribute('aria-expanded', String(open));
+    projToggle.textContent = label(open);
+    if (open) {
+      enter([...projGrid.children].slice(PROJ_SHOWN), { opacity: 0, translate: '0 24px' }, { opacity: 1, translate: '0 0' },
+        { delay: stag(70), duration: 700, ease: EASE.out4 });
+    } else {
+      scrollBy(0, projToggle.getBoundingClientRect().top - before);
+    }
   });
 }
 
@@ -205,7 +228,7 @@ function drawStars(camZ, rzDeg, rxDeg, ryDeg) {
   const rz = rzDeg * Math.PI / 180, cs = Math.cos(rz), sn = Math.sin(rz);
   const ox = sw / 2 - P * Math.sin(ryDeg * Math.PI / 180), oy = sh / 2 + P * Math.sin(rxDeg * Math.PI / 180);
   const proj = (s, d) => { const k = P / d, X = s.x * k, Y = s.y * k; return [ox + X * cs - Y * sn, oy + X * sn + Y * cs, k]; };
-  const streak = Math.abs(warp) > 6;
+  const streak = !reduce && Math.abs(warp) > 6;   // "reduce motion": plain stars, no hyperspace streaks
   for (let pass = 0; pass < 2; pass++) {
     const col = pass ? '#c9b6ff' : '#ffffff';
     sctx.fillStyle = col; sctx.strokeStyle = col; sctx.lineCap = 'round';

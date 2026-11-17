@@ -362,6 +362,7 @@
   .proj-lead { margin-top: 34px; }
   .proj-lead + .proj-grid { margin-top: 48px; }
   .proj-item { display: flex; }
+  .proj-toggle-wrap { display: none; }   /* phones only, see the 640px block */
   .proj-card {
     -webkit-appearance: none; appearance: none; font: inherit; color: inherit; text-align: left; cursor: pointer; width: 100%; min-height: 44px; margin: 0;
     background: #fff; border: 1px solid var(--line); border-radius: var(--r-md); padding: 14px 14px 22px;
@@ -424,6 +425,8 @@
     .wrap { padding: 0 16px; }
     .certs { grid-template-columns: 1fr; }
     .proj-grid { grid-template-columns: 1fr; margin-top: 44px; }
+    .proj-grid:not(.is-open) > .proj-item:nth-child(n+5) { display: none; }   /* 5 = PROJ_SHOWN + 1 in main.js */
+    .proj-toggle-wrap { display: flex; justify-content: center; margin-top: 28px; }
     .xp-panel { padding: 6px 22px; }
     .contact-head { grid-template-columns: 1fr; }
     .modal-panel { padding: 22px 20px 28px; border-radius: 0; }
@@ -431,4 +434,10 @@
     .ai-block, .ai-callout { grid-template-columns: 1fr; }
     .ai-callout { padding: 28px 22px; }
     .modal-title { font-size: 36px; }
+  }
+  /* "Reduce motion" in the OS: no lifting, sliding or zooming on hover, state changes switch instantly.
+     (The JS side checks the same setting: no intro flight, no reveal animations, no hyperspace streaks.) */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+    .stat:hover, .cert:hover, .proj-card:hover, .portrait:hover img { transform: none !important; }
   }
