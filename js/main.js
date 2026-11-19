@@ -1,4 +1,4 @@
-import { animate, waapi, splitText, onScroll, createAnimatable } from '../vendor/anime.esm.min.js';
+import { animate, splitText, onScroll } from '../vendor/anime.esm.min.js';
 import { EASE, stag, stagCenter, enter, leave } from './anim.js?v=9cbaf4c9';
 import { projects, SW_PATH, banners, stackHolos } from './data.js?v=3b960ce6';
 
@@ -7,7 +7,6 @@ const finePointer = matchMedia('(hover: hover) and (pointer: fine)').matches;
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
 const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
-const smooth = t => t * t * (3 - 2 * t);
 
 // Phones: wider field of view + narrower room so walls and artworks stay on screen
 const narrowMQ = matchMedia('(max-width: 699px)');
@@ -149,38 +148,31 @@ const hero = plane({
          <div class="hero-sub">Full-Stack-Entwickler · Shopware 6 · E-Commerce</div>`,
 });
 
-// Portal: a galaxy vortex — spiral-arm discs one behind the other, each twisting at its own speed while you scroll
+// Portal: a tunnel of fine ring discs one behind the other, each turning slowly at its own speed while you scroll
 const T_START = G_END, T_END = -6000;
 const vortices = [];
 for (let z = T_START - 300, i = 0; z > T_END + 200; z -= 420, i++) {
-  const geo = { z, s: 1, base: i * 47, dir: i % 2 ? 1 : -1, speed: .018 + (i % 3) * .008 };
+  const geo = { z, s: 1, base: i * 47, dir: i % 2 ? 1 : -1, speed: .006 + (i % 3) * .003 };
   const el = plane({ w: 1300, h: 1300, z, rz: geo.base, cls: 'vortex' });
   vortices.push({ el, geo, rz: NaN });
 }
-// spiral-arm texture, drawn once on a canvas → PNG (cheap to composite, never re-rasterised)
+// ring texture (thin concentric lines, a few accent arcs, a tick scale), drawn once on a canvas → PNG
+// (cheap to composite, never re-rasterised). Deliberately calm and muted: a precise instrument, not a light show.
 function makeVortexTexture() {
   const S = 1024, c = document.createElement('canvas'); c.width = c.height = S;
   const g = c.getContext('2d');
   g.translate(S / 2, S / 2);
-  g.globalCompositeOperation = 'lighter';
-  const ARMS = 3;
-  for (let a = 0; a < ARMS; a++) {
-    for (let i = 0; i < 850; i++) {
-      const t = i / 850;
-      const ang = a * 2 * Math.PI / ARMS + t * Math.PI * 2.4 + (Math.random() - .5) * .22;
-      const r = 150 + t * 340 + (Math.random() - .5) * 46 * t;
-      const x = Math.cos(ang) * r, y = Math.sin(ang) * r, size = (1 - t) * 16 + 4;
-      const hue = 268 - t * 55;
-      const grd = g.createRadialGradient(x, y, 0, x, y, size);
-      grd.addColorStop(0, `hsla(${hue},92%,${82 - t * 24}%,${.2 * (1 - t * .55)})`);
-      grd.addColorStop(1, 'hsla(0,0%,0%,0)');
-      g.fillStyle = grd; g.beginPath(); g.arc(x, y, size, 0, Math.PI * 2); g.fill();
-    }
+  g.lineCap = 'round';
+  const ring = (r, a0, a1, w, col) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.arc(0, 0, r, a0, a1); g.stroke(); };
+  for (let i = 0; i < 8; i++) ring(180 + i * 40, 0, Math.PI * 2, 1.5, `rgba(222,218,236,${(.2 - i * .018).toFixed(3)})`);
+  for (let i = 0; i < 5; i++) {   // accent arcs, one per ring band
+    const a0 = i * 1.37;
+    ring(200 + i * 60, a0, a0 + .45 + (i % 3) * .25, 3, `rgba(182,156,255,${(.5 - i * .07).toFixed(2)})`);
   }
-  for (let i = 0; i < 520; i++) {   // sparkles along the disc
-    const ang = Math.random() * Math.PI * 2, r = 150 + Math.random() * 350;
-    g.fillStyle = `rgba(255,255,255,${(Math.random() * .75).toFixed(2)})`;
-    g.fillRect(Math.cos(ang) * r, Math.sin(ang) * r, 1.6, 1.6);
+  g.strokeStyle = 'rgba(222,218,236,.22)'; g.lineWidth = 1.5;
+  for (let i = 0; i < 120; i++) {   // outer tick scale, every 10th tick longer
+    const a = i / 120 * Math.PI * 2, r1 = 488, r2 = i % 10 ? 498 : 510;
+    g.beginPath(); g.moveTo(Math.cos(a) * r1, Math.sin(a) * r1); g.lineTo(Math.cos(a) * r2, Math.sin(a) * r2); g.stroke();
   }
   c.toBlob(b => {
     const url = `url(${URL.createObjectURL(b)})`;
@@ -207,7 +199,7 @@ const holos = stackHolos.map(([k, v], i) => {
 ------------------------------------------------------------------- */
 const starCv = $('.stars'), sctx = starCv.getContext('2d');
 const STAR_R = 4200, stars = [];
-for (let i = 0, n = narrow ? 380 : 720; i < n; i++) {
+for (let i = 0, n = narrow ? 300 : 560; i < n; i++) {
   const a = Math.random() * Math.PI * 2, r = 260 + Math.pow(Math.random(), .7) * 2400;
   stars.push({ x: Math.cos(a) * r, y: Math.sin(a) * r, b: Math.random() * STAR_R, v: Math.random() < .18 });
 }
@@ -218,34 +210,22 @@ function sizeStars() {
   starCv.width = sw * sdpr; starCv.height = sh * sdpr;
   last.z = Infinity;   // force a redraw
 }
-let lastStarZ = 0, warp = 0;
 function drawStars(camZ, rzDeg, rxDeg, ryDeg) {
   sctx.setTransform(sdpr, 0, 0, sdpr, 0, 0);
   sctx.clearRect(0, 0, sw, sh);
-  // Hyperspace streaks: the faster the flight, the longer each star's trail (smoothed, capped)
-  const dz = camZ - lastStarZ; lastStarZ = camZ;
-  warp += (clamp(Math.abs(dz) * 9, 0, 520) * Math.sign(dz) - warp) * .25;
   const rz = rzDeg * Math.PI / 180, cs = Math.cos(rz), sn = Math.sin(rz);
   const ox = sw / 2 - P * Math.sin(ryDeg * Math.PI / 180), oy = sh / 2 + P * Math.sin(rxDeg * Math.PI / 180);
   const proj = (s, d) => { const k = P / d, X = s.x * k, Y = s.y * k; return [ox + X * cs - Y * sn, oy + X * sn + Y * cs, k]; };
-  const streak = !reduce && Math.abs(warp) > 6;   // "reduce motion": plain stars, no hyperspace streaks
   for (let pass = 0; pass < 2; pass++) {
-    const col = pass ? '#c9b6ff' : '#ffffff';
-    sctx.fillStyle = col; sctx.strokeStyle = col; sctx.lineCap = 'round';
+    sctx.fillStyle = pass ? '#d9d4ec' : '#ffffff';
     for (const s of stars) {
       if (s.v !== !!pass) continue;
       const d = ((s.b - camZ) % STAR_R + STAR_R) % STAR_R + 40;   // distance ahead of the eye
       const [x, y, k] = proj(s, d);
       if (x < -40 || y < -40 || x > sw + 40 || y > sh + 40) continue;
-      const size = Math.min(3, Math.max(.7, k * 2.4));
-      sctx.globalAlpha = Math.min(1, (STAR_R - d) / 900) * Math.min(1, (d - 40) / 160) * .9;
-      if (streak) {
-        let [tx, ty] = proj(s, Math.max(60, d + warp));   // where the star was a moment ago
-        // cap the trail on screen (backwards flight would otherwise draw lines thousands of px long)
-        const vx = tx - x, vy = ty - y, len = Math.hypot(vx, vy), MAXL = 120;
-        if (len > MAXL) { tx = x + vx / len * MAXL; ty = y + vy / len * MAXL; }
-        sctx.lineWidth = size; sctx.beginPath(); sctx.moveTo(tx, ty); sctx.lineTo(x, y); sctx.stroke();
-      } else sctx.fillRect(x - size / 2, y - size / 2, size, size);
+      const size = Math.min(2.4, Math.max(.7, k * 2));
+      sctx.globalAlpha = Math.min(1, (STAR_R - d) / 900) * Math.min(1, (d - 40) / 160) * .75;
+      sctx.fillRect(x - size / 2, y - size / 2, size, size);
     }
   }
   sctx.globalAlpha = 1;
@@ -301,9 +281,9 @@ function render(now) {
   mouse.sy += (mouse.y - mouse.sy) * k;
 
   const z = cam.z + intro.z;
-  const rz = smooth(clamp((z - 2500) / 3000)) * 90;
-  const rx = reduce ? 0 : -mouse.sy * 3;
-  const ry = reduce ? 0 : mouse.sx * 5;
+  const rz = 0;   // no camera roll: the flight stays level and calm
+  const rx = reduce ? 0 : -mouse.sy * 1.5;
+  const ry = reduce ? 0 : mouse.sx * 2.5;
 
   const camMoved = Math.abs(z - last.z) > .05 || Math.abs(rx - last.rx) > .002 || Math.abs(ry - last.ry) > .002;
   if (camMoved) {
@@ -337,8 +317,9 @@ function render(now) {
     for (const h of holos) {
       const d = -(h.z + z);
       // fade out well before the label gets huge on screen (huge text = expensive re-raster)
-      // short fade windows so only one label reads at a time (labels are 480 apart)
-      const o = Math.round(clamp((d - 260) / 200) * clamp((1000 - d) / 220) * 100) / 100;
+      // each label is visible only between d 700 and 260 (fades 120 long): labels are 450-480 apart, so the next one
+      // starts fading in only after the previous one has gone - never two labels on top of each other
+      const o = Math.round(clamp((d - 260) / 120) * clamp((700 - d) / 120) * 100) / 100;
       if (o !== h.o) { h.o = o; h.el.style.opacity = o; h.el.style.visibility = o ? '' : 'hidden'; }
       // cancel the camera roll → label stays level
       if (o && rzr !== h.rz) { h.rz = rzr; h.el.style.transform = planeTf(h.geo, -rzr); }
@@ -358,8 +339,6 @@ function render(now) {
     if (wantLight !== lightUI) { lightUI = wantLight; document.body.classList.toggle('is-light', wantLight); }
     if (inTrack) setLabel(z < 2550 ? '01 - Arbeiten' : z < 5300 ? '02 - Stack' : '03 - Projekte');
   }
-
-  else if (Math.abs(warp) > .5) drawStars(z, rz, rx, ry);   // let the hyperspace streaks fade out after the camera stops
 
   // Hover hit-test (elementFromPoint on a 3D scene is not free): only when the pointer moved, or once the camera
   // has settled - never every frame while flying. Throttled to every 3rd frame.
@@ -381,49 +360,20 @@ new IntersectionObserver(([e]) => {
 }).observe(track);
 
 /* ------------------------------------------------------------------
-   Cursor + hover
+   Exhibit hover (native cursor; the hovered exhibit gets .is-hover)
+   CSS :hover is unreliable on 3D layers while the camera moves, so the render loop hit-tests instead.
 ------------------------------------------------------------------- */
-const cursorEl = $('.cursor'), ringEl = $('.cursor-ring'), cLabel = $('.cursor-label');
 let hovered = null;
-if (finePointer) {
-  document.body.classList.add('has-cursor');
-  const dot = createAnimatable('.c-dot-pos', { x: 0, y: 0 });
-  const ring = createAnimatable('.c-ring-pos', { x: reduce ? 0 : 140, y: reduce ? 0 : 140, ease: 'out(3)' });
-  let shown = false;
-  addEventListener('pointermove', e => {
-    dot.x(e.clientX); dot.y(e.clientY); ring.x(e.clientX); ring.y(e.clientY);
-    if (!shown) { shown = true; waapi.animate(cursorEl, { opacity: 1, duration: 300 }); }
-    if (!inTrack) hitTest();
-  }, { passive: true });
-  document.documentElement.addEventListener('pointerleave', () => { shown = false; waapi.animate(cursorEl, { opacity: 0, duration: 300 }); });
-}
 function hitTest() {
-  if (mouse.px < 0) return setHovered(null);
+  if (mouse.px < 0 || !modal.hidden) return setHovered(null);
   const t = document.elementFromPoint(mouse.px, mouse.py);
-  if (!modal.hidden && !panel.contains(t)) return setHovered(null);
-  setHovered(t?.closest('.frame, a, button, .cert, .stat') || null);
+  setHovered(t?.closest('.frame') || null);
 }
 function setHovered(el) {
   if (el === hovered) return;
   hovered?.classList.remove('is-hover');
   hovered = el;
-  const isFrame = !!el?.classList.contains('frame');
   el?.classList.add('is-hover');
-  waapi.animate(ringEl, { scale: el ? (isFrame ? 2.4 : 1.6) : 1, opacity: el && !isFrame ? .6 : 1, duration: 450, ease: 'out(3)' });
-  waapi.animate(cLabel, { opacity: isFrame ? 1 : 0, translate: isFrame ? ['-6px 0', '0 0'] : '0 0', duration: 350, ease: 'out(3)' });
-}
-
-/* Magnetic buttons: pulled a few px towards the pointer, spring back on leave (anime.js animatable) */
-if (finePointer && !reduce) {
-  $$('.magnetic').forEach(btn => {
-    const m = createAnimatable(btn, { x: 500, y: 500, ease: 'out(3)' });
-    btn.addEventListener('pointermove', e => {
-      const r = btn.getBoundingClientRect();
-      m.x((e.clientX - (r.left + r.width / 2)) * .25);
-      m.y((e.clientY - (r.top + r.height / 2)) * .35);
-    });
-    btn.addEventListener('pointerleave', () => { m.x(0); m.y(0); });
-  });
 }
 
 /* ------------------------------------------------------------------
@@ -518,15 +468,6 @@ $$('.nav a[href^="#"]:not([data-goto])').forEach(a => a.addEventListener('click'
 }));
 
 /* ------------------------------------------------------------------
-   Grain (paused when the tab is hidden)
-------------------------------------------------------------------- */
-const grain = $('.grain');
-if (!reduce) setInterval(() => {
-  if (document.hidden) return;
-  grain.style.transform = `translate3d(${(Math.random() * 10 - 5).toFixed(1)}%, ${(Math.random() * 10 - 5).toFixed(1)}%, 0)`;
-}, 110);
-
-/* ------------------------------------------------------------------
    Content sections: HUD theme, labels, reveals, counters
 ------------------------------------------------------------------- */
 const content = $('.content');
@@ -590,8 +531,8 @@ if (!reduce) {
         if (cards.length) enter(cards, { opacity: 0, translate: '0 24px' }, { opacity: 1, translate: '0 0' }, { delay: stag(90, 120), duration: 900, ease: EASE.out4 });
         // Portrait: curtain reveal (clip-path, rounded) + settle-in zoom
         e.target.querySelectorAll('.portrait-img').forEach(pi => {
-          enter(pi, { clipPath: 'inset(100% 0 0 0 round 28px)' }, { clipPath: 'inset(0% 0 0 0 round 28px)' }, { duration: 1200, delay: 150, ease: EASE.inOut3 });
-          enter(pi.querySelector('img'), { scale: 1.25 }, { scale: 1 }, { duration: 1600, delay: 150 });
+          enter(pi, { clipPath: 'inset(100% 0 0 0 round 16px)' }, { clipPath: 'inset(0% 0 0 0 round 16px)' }, { duration: 1100, delay: 150, ease: EASE.inOut3 });
+          enter(pi.querySelector('img'), { scale: 1.08 }, { scale: 1 }, { duration: 1400, delay: 150 });
         });
         e.target.querySelectorAll('[data-count]').forEach(b => {
           const o = { v: 0 }, to = +b.dataset.count;
@@ -621,8 +562,8 @@ document.fonts.ready.then(bitmapPosters);
 function reveal() {
   document.body.classList.remove('loading');
   enter(hudItems, { opacity: 0, translate: '0 14px' }, { opacity: 1, translate: '0 0' }, { delay: stag(60, 500), duration: 900 });
-  enter(heroChars, { opacity: 0, translate: '0 60%', rotate: '8deg' }, { opacity: 1, translate: '0 0', rotate: '0deg' },
-    { delay: stagCenter(45, 700), duration: 1400, ease: EASE.out4 });
+  enter(heroChars, { opacity: 0, translate: '0 30%' }, { opacity: 1, translate: '0 0' },
+    { delay: stagCenter(25, 700), duration: 1100, ease: EASE.out4 });
   enter('.hero-kicker, .hero-sub', { opacity: 0, translate: '0 20px' }, { opacity: 1, translate: '0 0' }, { delay: stag(200, 1300), duration: 1000 });
   animate(intro, { z: 0, duration: 2600, ease: 'out(4)' });
   if (!reduce) hint.animate([{ translate: '-50% 0' }, { translate: '-50% 6px' }], { duration: 900, delay: 2500, direction: 'alternate', iterations: Infinity, easing: EASE.inOut2 });
