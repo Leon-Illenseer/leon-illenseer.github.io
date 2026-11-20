@@ -166,12 +166,13 @@
   body.content-low .progress, body.content-low .scroll-hint, body.content-low .hud-bottom { visibility: hidden; }
   .menu-btn { display: none; pointer-events: auto; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; background: transparent; border: 1px solid currentColor; border-radius: var(--r-sm); padding: 10px 16px; min-height: 44px; }
   /* In the content area the top bar gets its own surface so headings never run under the nav */
-  /* display:none over the 3D scene: a backdrop-filter (even at opacity 0) would force the whole scene into an extra render surface */
+  /* Solid surface, no backdrop-filter: a blur behind a fixed bar has to be recomputed on every scroll frame
+     (with the project posters underneath that caused visible stutter on weaker GPUs) */
   .hud-bar { position: fixed; inset: 0 0 auto; height: 72px; z-index: 29; pointer-events: none; display: none;
-    background: rgba(255,255,255,.9); border-bottom: 1px solid rgba(0,0,0,.06); transition: background-color .45s var(--ease); }
-  body.in-content .hud-bar { display: block; backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4); animation: barIn .45s var(--ease); }
+    background: rgba(255,255,255,.97); border-bottom: 1px solid rgba(0,0,0,.07); transition: background-color .45s var(--ease); }
+  body.in-content .hud-bar { display: block; animation: barIn .45s var(--ease); }
   @keyframes barIn { from { opacity: 0; transform: translateY(-100%); } }
-  body.in-content.on-dark .hud-bar { background: rgba(11,11,11,.86); border-bottom-color: rgba(255,255,255,.08); }
+  body.in-content.on-dark .hud-bar { background: rgba(11,11,11,.96); border-bottom-color: rgba(255,255,255,.08); }
 
   /* ---------- Buttons (one system) ---------- */
   .btn {
@@ -218,7 +219,7 @@
   .modal-nav {
     position: sticky; bottom: -36px; z-index: 2; margin: auto -40px -36px; padding: 18px 40px 26px;
     display: flex; justify-content: space-between; gap: 12px;
-    background: rgba(247,246,243,.94); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    background: #f7f6f3;   /* solid: no per-frame blur while the panel content scrolls underneath */
     border-top: 1px solid var(--line); box-shadow: 0 -12px 24px -18px rgba(0,0,0,.25);
   }
 

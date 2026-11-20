@@ -402,6 +402,7 @@ function step(d) {
 function openProject(i) {
   lastFocus = document.activeElement;
   openIndex = i;
+  if (modal.hidden) lockScroll(true);
   modal.hidden = false;
   document.body.classList.add('modal-open');
   fillModal(i);
@@ -415,6 +416,7 @@ function closeProject() {
   leave(backdrop, { opacity: '0' }, { duration: 400, ease: EASE.out2 });
   leave(panel, { translate: '100% 0' }, { duration: 550, ease: EASE.inOut3 }).then(() => {
     modal.hidden = true;
+    lockScroll(false);
     panel.style.translate = ''; backdrop.style.opacity = '';
     document.body.classList.remove('modal-open');
     lastFocus?.focus?.({ preventScroll: true });
@@ -428,10 +430,16 @@ world.addEventListener('keydown', e => {
   const fr = e.target.closest('.frame');
   if (fr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openProject(+fr.dataset.index); }
 });
-// Lock page scroll while the panel is open without overflow:hidden (that breaks the sticky 3D viewport)
-const blockScroll = e => { if (!modal.hidden && !panel.contains(e.target)) e.preventDefault(); };
-addEventListener('wheel', blockScroll, { passive: false });
-addEventListener('touchmove', blockScroll, { passive: false });
+// Lock page scroll while the panel is open without overflow:hidden (that breaks the sticky 3D viewport).
+// The blocking (non-passive) listeners exist ONLY while the panel is open: a permanent non-passive wheel/touchmove
+// listener on the window makes the browser wait for the main thread before every scroll step - with the 3D render
+// loop running, that made normal page scrolling stutter.
+const blockScroll = e => { if (!panel.contains(e.target)) e.preventDefault(); };
+function lockScroll(on) {
+  const fn = on ? addEventListener : removeEventListener;
+  fn('wheel', blockScroll, { passive: false });
+  fn('touchmove', blockScroll, { passive: false });
+}
 panel.addEventListener('wheel', e => {
   const atTop = panel.scrollTop <= 0 && e.deltaY < 0;
   const atEnd = panel.scrollTop + panel.clientHeight >= panel.scrollHeight - 1 && e.deltaY > 0;
